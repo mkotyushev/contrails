@@ -12,7 +12,6 @@ services:
       - SSH_AUTH_SOCK:${SSH_AUTH_SOCK}
     volumes:
       - .:/workspace/contrails:cached
-      - data:/workspace/data:cached
       - pip_cache:/root/.cache/pip:cached
       - $SSH_AUTH_SOCK:${SSH_AUTH_SOCK}
     command: /bin/sh -c "while sleep 1000; do :; done"
