@@ -11,7 +11,7 @@ services:
     environment:
       - SSH_AUTH_SOCK:${SSH_AUTH_SOCK}
     volumes:
-      - .:/workspace/<<[repository_name]>>:cached
+      - .:/workspace/contrails:cached
       - data:/workspace/data:cached
       - pip_cache:/root/.cache/pip:cached
       - $SSH_AUTH_SOCK:${SSH_AUTH_SOCK}
