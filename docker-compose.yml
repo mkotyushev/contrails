@@ -12,6 +12,7 @@ services:
       - SSH_AUTH_SOCK:${SSH_AUTH_SOCK}
     volumes:
       - .:/workspace/contrails:cached
+      - ${DATA_PATH_OR_VOLUME_NAME}:/workspace/data:cached
       - data:/workspace/data:cached
       - pip_cache:/root/.cache/pip:cached
       - $SSH_AUTH_SOCK:${SSH_AUTH_SOCK}
