@@ -1,5 +1,5 @@
 # Base CUDA devel image
-FROM nvidia/cuda:11.7.0-devel-ubuntu22.04
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 # Set working directory
 WORKDIR /workspace/contrails
@@ -25,7 +25,7 @@ RUN \
     conda create \
     --name contrails \
     python=3.10 \
-    gcc_linux-64 gxx_linux-64 libgcc cudatoolkit=11.7 \
+    gcc_linux-64 gxx_linux-64 libgcc cudatoolkit=11.8 \
     -c conda-forge -y
 RUN /root/miniconda3/envs/contrails/bin/python -m pip install --upgrade pip
 
@@ -36,8 +36,8 @@ RUN \
     /root/miniconda3/envs/contrails/bin/pip install \
     --default-timeout=1000 \
     --extra-index-url https://download.pytorch.org/whl/cu117 \
-    torch==2.0.1+cu117 \
-    torchvision==0.15.2+cu117
+    torch==2.0.1+cu118 \
+    torchvision==0.15.2+cu118
 
 # Install requirements
 COPY requirements.txt .
