@@ -13,7 +13,6 @@ services:
     volumes:
       - .:/workspace/contrails:cached
       - ${DATA_PATH_OR_VOLUME_NAME}:/workspace/data:cached
-      - data:/workspace/data:cached
       - pip_cache:/root/.cache/pip:cached
       - $SSH_AUTH_SOCK:${SSH_AUTH_SOCK}
     command: /bin/sh -c "while sleep 1000; do :; done"
@@ -27,5 +26,5 @@ services:
         limits:
           memory: 55g
 volumes:
-  data:
+  ${DATA_PATH_OR_VOLUME_NAME}:
   pip_cache:
