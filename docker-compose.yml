@@ -26,5 +26,4 @@ services:
         limits:
           memory: 55g
 volumes:
-  ${DATA_PATH_OR_VOLUME_NAME}:
   pip_cache:
