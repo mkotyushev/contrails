@@ -7,7 +7,7 @@ WORKDIR /workspace/contrails
 # Apt-get installs
 RUN \
     apt update && \
-    apt-get -y install git unzip wget tmux curl
+    apt-get -y install git zip unzip wget tmux curl libgl1 libglib2.0-0 imagemagick
 
 # Install Miniconda
 RUN \
@@ -35,7 +35,7 @@ RUN /root/miniconda3/envs/contrails/bin/python -m pip install --upgrade pip
 RUN \
     /root/miniconda3/envs/contrails/bin/pip install \
     --default-timeout=1000 \
-    --extra-index-url https://download.pytorch.org/whl/cu117 \
+    --extra-index-url https://download.pytorch.org/whl/cu118 \
     torch==2.0.1+cu118 \
     torchvision==0.15.2+cu118
 
