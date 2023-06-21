@@ -1,0 +1,3 @@
+[submodule "lib/EVA"]
+	path = lib/EVA
+	url = git@github.com:mkotyushev/EVA.git
