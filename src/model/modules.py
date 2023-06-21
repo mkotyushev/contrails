@@ -427,11 +427,11 @@ backbone_name_to_params = {
 eva02_backbone_name_to_params = {
     'eva02_B_ade_seg_upernet_sz512': {
         'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernet_eva02_base_12_512_slide_60k.py',
-        'ckpt_path': './scrolls/eva02_B_ade_seg_upernet_sz512.pth',
+        'ckpt_path': './pretrained/eva02_B_ade_seg_upernet_sz512.pth',
     },
     'eva02_L_ade_seg_upernet_sz640': {
         'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernetpro_eva02_large_24_640_slide_80k.py',
-        'ckpt_path': './scrolls/eva02_L_ade_seg_upernet_sz640.pth',
+        'ckpt_path': './pretrained/eva02_L_ade_seg_upernet_sz640.pth',
     },
 }
 def build_segmentation_eva02(
@@ -627,8 +627,6 @@ class SegmentationModule(BaseModule):
             self.model = build_segmentation_hf(
                 backbone_name, 
                 in_channels=in_channels,
-                decoder_attention_type=decoder_attention_type,
-                img_size=img_size,
                 grad_checkpointing=grad_checkpointing,
                 pretrained=pretrained,
             )
