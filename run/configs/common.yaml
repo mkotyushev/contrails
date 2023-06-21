@@ -73,7 +73,7 @@ model:
     in_channels: 3
     img_size: 256
     backbone_name: null
-    log_preview_every_n_epochs: 5
+    log_preview_every_n_epochs: 1
     tta_params: null
     # tta_params: 
     #   n_random_replays: 0
