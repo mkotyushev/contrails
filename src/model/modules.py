@@ -183,6 +183,15 @@ class BaseModule(LightningModule):
                 add_dataloader_idx=False,
                 batch_size=batch[0].shape[0],
             )
+        self.log(
+            f'vl', 
+            total_loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            add_dataloader_idx=False,
+            batch_size=batch[0].shape[0],
+        )
         self.update_metrics('v_metrics', preds, batch)
         return total_loss
 
