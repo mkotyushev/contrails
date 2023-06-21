@@ -1,0 +1,33 @@
+program: run/main.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/scrolls/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - ${args}
+method: random
+parameters:
+  model.init_args.backbone_name:
+    distribution: categorical
+    values: 
+    - convnextv2_base.fcmae_ft_in22k_in1k_384
+    - eva02_B_ade_seg_upernet_sz512
+    - maxvit_rmlp_base_rw_384.sw_in12k_ft_in1k
+    - nvidia/mit-b5
+  model.init_args.loss_name:
+    distribution: categorical
+    values:
+    - bce
+    - focal
+    - dice
+    - gdl
+  model.init_args.pos_weight:
+    distribution: log_uniform_values
+      min: 0.001
+      max: 300.0
+  model.init_args.optimizer_init.init_args.lr:
+    distribution: log_uniform_values
+      min: 0.00001
+      max: 0.01
