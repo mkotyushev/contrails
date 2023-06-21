@@ -13,6 +13,7 @@ from torchmetrics import Metric
 from torchmetrics.classification import BinaryFBetaScore
 from lightning.pytorch.utilities import grad_norm
 from torchvision.ops import sigmoid_focal_loss
+from transformers import SegformerForSemanticSegmentation
 
 from src.data.transforms import Tta
 from src.model.smp import Unet, patch_first_conv
@@ -20,6 +21,7 @@ from src.utils.mechanic import mechanize
 from src.utils.utils import (
     FeatureExtractorWrapper, 
     Eva02Wrapper,
+    HfWrapper,
     PredictionTargetPreviewAgg, 
     PredictionTargetPreviewGrid, 
     get_feature_channels, 
@@ -412,6 +414,13 @@ backbone_name_to_params = {
         'decoder_out_channels': (256, 128, 64),
         'format': 'NCHW',
     },
+    'mit-b5': {
+        'upsampling': 4,
+        'decoder_channels': (256, 128, 64),
+        'decoder_mid_channels': (256, 128, 64),
+        'decoder_out_channels': (256, 128, 64),
+        'format': 'NCHW',
+    },
 }
 
 
@@ -434,7 +443,7 @@ def build_segmentation_eva02(
 ):
     import sys
 
-    sys.path.insert(0, '/workspace/scrolls/lib/EVA/EVA-02/seg')
+    sys.path.insert(0, '/workspace/contrails/lib/EVA/EVA-02/seg')
     from backbone import eva2
     from mmseg.models import build_segmentor
     from mmengine.runner import load_checkpoint
@@ -483,14 +492,13 @@ def build_segmentation_timm(
     """Build segmentation model."""
     backbone_param_key = backbone_name.split('_')[0]
     create_model_kwargs = {}
-    if backbone_param_key == 'swinv2':
+    if backbone_param_key in ['swinv2', 'maxvit']:
         create_model_kwargs['img_size'] = img_size
 
     encoder = timm.create_model(
         backbone_name, 
         features_only=True,
         pretrained=pretrained,
-        img_size=img_size,
         **create_model_kwargs,
     )
 
@@ -518,6 +526,37 @@ def build_segmentation_timm(
         classes=1,
         upsampling=backbone_name_to_params[backbone_param_key]['upsampling'],
         decoder_attention_type=decoder_attention_type,
+    )
+
+    return model
+
+
+def build_segmentation_hf(
+    backbone_name, 
+    in_channels=1, 
+    grad_checkpointing=False,
+    pretrained=True,
+):
+    if grad_checkpointing:
+        logger.warning(
+            'grad_checkpointing is not supported for nvidia models, '
+            'setting grad_checkpointing=False.'
+        )
+    model = SegformerForSemanticSegmentation.from_pretrained(
+        backbone_name,
+        num_labels=1,
+        ignore_mismatched_sizes=False,
+        num_channels=3,
+    )
+    model = HfWrapper(model)
+
+    # Patch first conv from 3 to in_channels
+    patch_first_conv(
+        model, 
+        new_in_channels=in_channels,
+        default_in_channels=3, 
+        pretrained=pretrained,
+        conv_type=nn.Conv2d,
     )
 
     return model
@@ -583,6 +622,15 @@ class SegmentationModule(BaseModule):
                 pretrained=pretrained,
                 grad_checkpointing=grad_checkpointing,
                 img_size=img_size,
+            )
+        elif backbone_name.startswith('nvidia'):
+            self.model = build_segmentation_hf(
+                backbone_name, 
+                in_channels=in_channels,
+                decoder_attention_type=decoder_attention_type,
+                img_size=img_size,
+                grad_checkpointing=grad_checkpointing,
+                pretrained=pretrained,
             )
         else:
             self.model = build_segmentation_timm(

@@ -1,0 +1,3 @@
+model:
+  init_args:
+    backbone_name: convnextv2_base.fcmae_ft_in22k_in1k_384

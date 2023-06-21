@@ -477,6 +477,19 @@ class Eva02Wrapper(nn.Module):
         return x
 
 
+class HfWrapper(nn.Module):
+    def __init__(self, model, scale_factor=4):
+        super().__init__()
+        self.model = model
+        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor)
+    
+    def forward(self, x):
+        x = self.model(x)['logits']
+        # Upsample to original size
+        x = self.upsampling(x)
+        return x
+
+
 def get_feature_channels(model, input_shape, output_format='NHWC'):
     is_training = model.training
     model.eval()
