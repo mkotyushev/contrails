@@ -137,7 +137,7 @@ class BaseModule(LightningModule):
                 param.requires_grad = selected
 
     def training_step(self, batch, batch_idx, **kwargs):
-        total_loss, losses, preds = self.compute_loss_preds(batch, tta=False, **kwargs)
+        total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
         for loss_name, loss in losses.items():
             self.log(
                 f'tl_{loss_name}', 
@@ -170,7 +170,7 @@ class BaseModule(LightningModule):
         return total_loss
     
     def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
-        total_loss, losses, preds = self.compute_loss_preds(batch, tta=self.tta is not None, **kwargs)
+        total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
         assert dataloader_idx is None or dataloader_idx == 0, 'Only one val dataloader is supported.'
         for loss_name, loss in losses.items():
             self.log(
@@ -195,7 +195,7 @@ class BaseModule(LightningModule):
         return total_loss
 
     def predict_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
-        _, _, preds = self.compute_loss_preds(batch, tta=self.tta is not None, **kwargs)
+        _, _, preds = self.compute_loss_preds(batch, **kwargs)
         return preds
 
     def log_metrics_and_reset(
@@ -611,7 +611,6 @@ class SegmentationModule(BaseModule):
         backbone_name: str = 'swinv2_tiny_window8_256.ms_in1k',
         in_channels: int = 6,
         log_preview_every_n_epochs: int = 10,
-        tta_each_n_epochs: int = 10,
         tta_params: Dict[str, Any] = None,
         pretrained: bool = True,
         label_smoothing: float = 0.0,
@@ -680,22 +679,17 @@ class SegmentationModule(BaseModule):
             self.unfreeze_only_selected()
 
         assert loss_name in ['bce', 'focal', 'dice', 'gdl'], f'Unknown loss name {loss_name}.'
-        assert tta_each_n_epochs != 0, \
-            'tta_each_n_epochs == 0 is not supported, use tta_each_n_epochs == -1 to disable TTA.'
         if tta_params is None:
             tta_params = {}
-        self.tta = \
-            None \
-            if tta_each_n_epochs < 0 else \
-            Tta(model=self.model, **tta_params)
+        self.tta = Tta(
+            model=self.model, 
+            do_tta=len(tta_params) > 0, 
+            **tta_params
+        )
 
-    def compute_loss_preds(self, batch, tta=False, *args, **kwargs):
+    def compute_loss_preds(self, batch, *args, **kwargs):
         """Compute losses and predictions."""
-        if tta:
-            assert self.tta is not None, 'tta is not initialized.'
-            preds = self.tta(batch['image'])
-        else:
-            preds = self.model(batch['image'])
+        preds = self.tta(batch['image'])
         
         if 'mask' not in batch:
             return None, None, preds
@@ -757,7 +751,7 @@ class SegmentationModule(BaseModule):
         self.cat_metrics = None
 
     def training_step(self, batch, batch_idx, **kwargs):
-        total_loss, losses, preds = self.compute_loss_preds(batch, tta=False, **kwargs)
+        total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
         for loss_name, loss in losses.items():
             self.log(
                 f'tl_{loss_name}', 
@@ -816,9 +810,9 @@ class SegmentationModule(BaseModule):
         
         return total_loss
     
-    def _validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, tta=False, **kwargs) -> Tensor:
-        loss_prefix = 'vl' if not tta else 'vl_tta'
-        total_loss, losses, preds = self.compute_loss_preds(batch, tta=tta, **kwargs)
+    def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
+        loss_prefix = 'vl'
+        total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
         assert dataloader_idx is None or dataloader_idx == 0, 'Only one val dataloader is supported.'
         for loss_name, loss in losses.items():
             self.log(
@@ -840,7 +834,7 @@ class SegmentationModule(BaseModule):
             batch_size=batch['image'].shape[0],
         )
         
-        span_prefix = 'v' if not tta else 'v_tta'
+        span_prefix = 'v'
         y, y_pred = self.extract_targets_and_probas_for_metric(preds, batch)
         for metric in self.metrics[f'{span_prefix}_metrics'].values():
             if isinstance(metric, PredictionTargetPreviewAgg) and batch['indices'] is not None:
@@ -867,15 +861,8 @@ class SegmentationModule(BaseModule):
                 metric.update(y_pred.flatten(), y.flatten())
         return total_loss
     
-    def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
-        tta = self.tta is not None and self.current_epoch % self.hparams.tta_each_n_epochs == 0
-        result = self._validation_step(batch, batch_idx, dataloader_idx, tta=False, **kwargs)
-        if tta:
-            self._validation_step(batch, batch_idx, dataloader_idx, tta=True, **kwargs)
-        return result
-
     def predict_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
-        _, _, preds = self.compute_loss_preds(batch, tta=self.tta is not None, **kwargs)
+        _, _, preds = self.compute_loss_preds(batch, **kwargs)
         return preds
 
     def on_train_epoch_end(self) -> None:
@@ -894,12 +881,12 @@ class SegmentationModule(BaseModule):
                         step=self.current_epoch,
                     )
 
-    def _on_validation_epoch_end(self, tta) -> None:
+    def on_validation_epoch_end(self) -> None:
         """Called in the validation loop at the very end of the epoch."""
         if self.metrics is None:
             return
 
-        metric_prefix = span_prefix = 'v' if not tta else 'v_tta'
+        metric_prefix = span_prefix = 'v'
         for metric_name, metric in self.metrics[f'{span_prefix}_metrics'].items():
             if isinstance(metric, PredictionTargetPreviewAgg):
                 metric_values, captions, previews = metric.compute()
@@ -937,12 +924,6 @@ class SegmentationModule(BaseModule):
                     prog_bar=True,
                 )
             metric.reset()
-
-    def on_validation_epoch_end(self) -> None:
-        tta = self.tta is not None and self.current_epoch % self.hparams.tta_each_n_epochs == 0
-        self._on_validation_epoch_end(tta=False)
-        if tta:
-            self._on_validation_epoch_end(tta=True)
 
     def extract_targets_and_probas_for_metric(self, preds, batch):
         """Extract preds and targets from batch.

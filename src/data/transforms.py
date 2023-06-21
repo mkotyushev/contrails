@@ -199,13 +199,15 @@ class TtaRotate:
 
 
 class Tta:
-    def __init__(self, model, n_random_replays=1, use_hflip=True, use_vflip=True, rotate90_indices=None):
+    def __init__(self, model, do_tta, n_random_replays=1, use_hflip=True, use_vflip=True, rotate90_indices=None):
+        self.do_tta = do_tta
+
         assert n_random_replays > 0 or use_hflip or use_vflip or rotate90_indices is not None, \
             "At least one of n_random_replays > 0, "\
             "use_hflip or use_vflip or rotate90_indices is not None should be True."
-        assert all([i > 0 and i <= 3 for i in rotate90_indices]), \
+        assert rotate90_indices is None or all([i > 0 and i <= 3 for i in rotate90_indices]), \
             f"rotate90_indices should be in [0, 3]. Got {rotate90_indices}"
-        assert len(rotate90_indices) == len(set(rotate90_indices)), \
+        assert rotate90_indices is None or len(rotate90_indices) == len(set(rotate90_indices)), \
             f"rotate90_indices should not contain duplicates. Got {rotate90_indices}"
         self.model = model
         
@@ -269,6 +271,9 @@ class Tta:
         return preds
 
     def __call__(self, batch: torch.Tensor) -> torch.Tensor:
+        if not self.do_tta:
+            return self.model(batch)
+
         preds = self.predict(batch)
         
         # Average predictions, ignoring NaNs
