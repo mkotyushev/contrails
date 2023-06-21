@@ -38,6 +38,7 @@ class MyLightningCLI(LightningCLI):
 
     def before_instantiate_classes(self) -> None:
         """Implement to run some code before instantiating the classes."""
+        # Force not deterministic training
         if (
             self.config['fit']['model']['init_args']['backbone_name'].startswith('nvidia') or
             self.config['fit']['model']['init_args']['backbone_name'].startswith('eva02')
@@ -48,6 +49,11 @@ class MyLightningCLI(LightningCLI):
                     'Setting `deterministic=False`.'
                 )
             self.config['fit']['trainer']['deterministic'] = False
+
+        # Set LR (needed for sweeps)
+        if self.config['fit']['model']['init_args']['lr'] is not None:
+            self.config['fit']['model']['init_args']['optimizer_init']['init_args']['lr'] = \
+                self.config['fit']['model']['init_args']['lr']
 
 
 class TrainerWandb(Trainer):

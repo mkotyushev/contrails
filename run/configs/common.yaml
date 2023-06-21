@@ -116,6 +116,7 @@ model:
       - f1
     grad_checkpointing: false
     compile: false
+    lr: null  # needed for sweeps
 data:
   class_path: src.data.datamodules.ContrailsDatamodule
   init_args:

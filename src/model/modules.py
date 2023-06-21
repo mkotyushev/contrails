@@ -631,6 +631,7 @@ class SegmentationModule(BaseModule):
         img_size=256,
         loss_name: str = 'bce',
         compile: bool = False,
+        lr: float = 1e-3,
     ):
         super().__init__(
             optimizer_init=optimizer_init,
