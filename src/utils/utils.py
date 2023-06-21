@@ -398,35 +398,35 @@ class PredictionTargetPreviewGrid(nn.Module):
         input: torch.Tensor,
         probas: torch.Tensor, 
         target: torch.Tensor, 
-        pathes: list[str],
     ):
         # Add images until grid is full
         for i in range(probas.shape[0]):
-            path = '/'.join(pathes[i].split('/')[-2:])
-            if len(self.previews[f'input_{path}']) < self.n_images:
-                # Get preview images
-                inp = F.interpolate(
-                    input[i].float().unsqueeze(0),
-                    scale_factor=1 / self.preview_downscale, 
-                    mode='bilinear',
-                    align_corners=False, 
-                ).cpu()
-                proba = F.interpolate(
-                    probas[i].float().unsqueeze(0).unsqueeze(1),  # interpolate as (N, C, H, W)
-                    scale_factor=1 / self.preview_downscale, 
-                    mode='bilinear', 
-                    align_corners=False, 
-                ).cpu()
-                targ = F.interpolate(
-                    target[i].float().unsqueeze(0).unsqueeze(1),  # interpolate as (N, C, H, W)
-                    scale_factor=1 / self.preview_downscale,
-                    mode='bilinear',
-                    align_corners=False, 
-                ).cpu()
+            if len(self.previews['input']) >= self.n_images:
+                return
 
-                self.previews[f'input_{path}'].append(inp)
-                self.previews[f'proba_{path}'].append((proba * 255).byte())
-                self.previews[f'target_{path}'].append((targ * 255).byte())
+            # Get preview images
+            inp = F.interpolate(
+                input[i].float().unsqueeze(0),
+                scale_factor=1 / self.preview_downscale, 
+                mode='bilinear',
+                align_corners=False, 
+            ).cpu()
+            proba = F.interpolate(
+                probas[i].float().unsqueeze(0).unsqueeze(1),  # interpolate as (N, C, H, W)
+                scale_factor=1 / self.preview_downscale, 
+                mode='bilinear', 
+                align_corners=False, 
+            ).cpu()
+            targ = F.interpolate(
+                target[i].float().unsqueeze(0).unsqueeze(1),  # interpolate as (N, C, H, W)
+                scale_factor=1 / self.preview_downscale,
+                mode='bilinear',
+                align_corners=False, 
+            ).cpu()
+
+            self.previews['input'].append(inp)
+            self.previews['proba'].append((proba * 255).byte())
+            self.previews['target'].append((targ * 255).byte())
     
     def compute(self):
         captions = list(self.previews.keys())

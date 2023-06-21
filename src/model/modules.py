@@ -37,7 +37,7 @@ class BaseModule(LightningModule):
         lr_scheduler_init: Optional[Dict[str, Any]] = None,
         pl_lrs_cfg: Optional[Dict[str, Any]] = None,
         finetuning: Optional[Dict[str, Any]] = None,
-        log_norm_verbose: bool = False,
+        log_norm_verbose: int = 0,
         lr_layer_decay: Union[float, Dict[str, float]] = 1.0,
         n_bootstrap: int = 1000,
         skip_nan: bool = False,
@@ -352,17 +352,20 @@ class BaseModule(LightningModule):
 
     def on_before_optimizer_step(self, optimizer):
         """Log gradient norms."""
+        if self.hparams.log_norm_verbose == 0:
+            return
+        
         # Compute the 2-norm for each layer
         # If using mixed precision, the gradients are already unscaled here
         norms = grad_norm(self, norm_type=2)
-        if self.hparams.log_norm_verbose:
+        if self.hparams.log_norm_verbose > 1:
             self.log_dict(norms)
         else:
             if 'grad_2.0_norm_total' in norms:
                 self.log('grad_2.0_norm_total', norms['grad_2.0_norm_total'])
 
         norms = state_norm(self, norm_type=2)
-        if self.hparams.log_norm_verbose:
+        if self.hparams.log_norm_verbose > 1:
             self.log_dict(norms)
         else:
             if 'state_2.0_norm_total' in norms:
@@ -547,7 +550,7 @@ class SegmentationModule(BaseModule):
         lr_scheduler_init: Optional[Dict[str, Any]] = None,
         pl_lrs_cfg: Optional[Dict[str, Any]] = None,
         finetuning: Optional[Dict[str, Any]] = None,
-        log_norm_verbose: bool = False,
+        log_norm_verbose: int = 0,
         grad_checkpointing: bool = False,
         lr_layer_decay: Union[float, Dict[str, float]] = 1.0,
         n_bootstrap: int = 1000,
@@ -690,7 +693,6 @@ class SegmentationModule(BaseModule):
                     batch['image'][:, :3, ...],
                     y_pred, 
                     y, 
-                    pathes=batch['path'],
                 )
             else:
                 metric.update(y_pred.flatten(), y.flatten())
@@ -761,7 +763,6 @@ class SegmentationModule(BaseModule):
                     batch['image'][:, :3, ...],
                     y_pred, 
                     y, 
-                    pathes=batch['path'],
                 )
             else:
                 metric.update(y_pred.flatten(), y.flatten())

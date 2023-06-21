@@ -109,7 +109,7 @@ model:
       frequency: 1
     finetuning: null
     lr_layer_decay: 1.0
-    log_norm_verbose: false
+    log_norm_verbose: 0
     n_bootstrap: 0
     skip_nan: false
     prog_bar_names: 
@@ -130,7 +130,7 @@ data:
     random_state: 0
     mix_transform_name: null
     batch_size: 16
-    num_workers: 4
+    num_workers: 2
     pin_memory: false
-    prefetch_factor: 2
+    prefetch_factor: 1
     persistent_workers: true
