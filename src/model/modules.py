@@ -490,6 +490,7 @@ def build_segmentation_timm(
         backbone_name, 
         features_only=True,
         pretrained=pretrained,
+        img_size=img_size,
         **create_model_kwargs,
     )
 
@@ -594,7 +595,7 @@ class SegmentationModule(BaseModule):
             )
 
         if compile:
-            self.model = torch.compile(self.model)
+            self.model = torch.compile(self.model, mode="reduce-overhead")
 
         if finetuning is not None and finetuning['unfreeze_before_epoch'] == 0:
             self.unfreeze()
