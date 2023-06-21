@@ -1,6 +1,9 @@
 import logging
+import os
+
+LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=LOGLEVEL,
     format = '[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s'
 )
 
