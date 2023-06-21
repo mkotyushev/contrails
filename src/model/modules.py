@@ -1,14 +1,31 @@
 import logging
+import timm
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from copy import deepcopy
+from torch.nn import ModuleDict
 from lightning import LightningModule
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 from torch import Tensor
 from lightning.pytorch.cli import instantiate_class
 from torchmetrics import Metric
+from torchmetrics.classification import BinaryFBetaScore
 from lightning.pytorch.utilities import grad_norm
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+from torchvision.ops import sigmoid_focal_loss
 
-from src.utils.utils import state_norm
+from src.data.transforms import Tta
+from src.model.smp import Unet, patch_first_conv
 from src.utils.mechanic import mechanize
+from src.utils.utils import (
+    FeatureExtractorWrapper, 
+    Eva02Wrapper,
+    PredictionTargetPreviewAgg, 
+    PredictionTargetPreviewGrid, 
+    get_feature_channels, 
+    state_norm,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -34,6 +51,8 @@ class BaseModule(LightningModule):
         self.metrics = None
         self.cat_metrics = None
 
+        self.tta = None
+
         self.configure_metrics()
 
     def compute_loss_preds(self, batch, *args, **kwargs):
@@ -44,7 +63,6 @@ class BaseModule(LightningModule):
 
     def bootstrap_metric(self, probas, targets, metric: Metric):
         """Calculate metric on bootstrap samples."""
-        return None
 
     @staticmethod
     def check_batch_dims(batch):
@@ -61,11 +79,11 @@ class BaseModule(LightningModule):
         if nan_mask.any():
             if not self.hparams.skip_nan:
                 raise ValueError(
-                    f'Got {nan_mask.sum()} / {nan_mask.shape[0]} nan values in update_metrics. '
+                    f'Got {nan_mask.sum()} / {nan_mask.numel()} nan values in update_metrics. '
                     f'Use skip_nan=True to skip them.'
                 )
             logger.warning(
-                f'Got {nan_mask.sum()} / {nan_mask.shape[0]} nan values in update_metrics. '
+                f'Got {nan_mask.sum()} / {nan_mask.numel()} nan values in update_metrics. '
                 f'Dropping them & corresponding targets.'
             )
             y_pred = y_pred[~nan_mask]
@@ -95,11 +113,6 @@ class BaseModule(LightningModule):
             if self.current_epoch == self.hparams.finetuning['unfreeze_before_epoch']:
                 self.unfreeze()
 
-    def on_train_start(self) -> None:
-        # Change dataloader num_workers to 10
-        # after cache is filled
-        self.trainer.datamodule.hparams.num_workers = self.trainer.datamodule.hparams.num_workers_saturated
-
     def unfreeze_only_selected(self):
         """
         Unfreeze only layers selected by 
@@ -124,17 +137,17 @@ class BaseModule(LightningModule):
                 param.requires_grad = selected
 
     def training_step(self, batch, batch_idx, **kwargs):
-        total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
+        total_loss, losses, preds = self.compute_loss_preds(batch, tta=False, **kwargs)
         for loss_name, loss in losses.items():
             self.log(
-                f'train_loss_{loss_name}', 
+                f'tl_{loss_name}', 
                 loss,
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
                 batch_size=batch[0].shape[0],
             )
-        self.update_metrics('train_metrics', preds, batch)
+        self.update_metrics('t_metrics', preds, batch)
 
         # Handle nan in loss
         has_nan = False
@@ -157,11 +170,11 @@ class BaseModule(LightningModule):
         return total_loss
     
     def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
-        total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
+        total_loss, losses, preds = self.compute_loss_preds(batch, tta=self.tta is not None, **kwargs)
         assert dataloader_idx is None or dataloader_idx == 0, 'Only one val dataloader is supported.'
         for loss_name, loss in losses.items():
             self.log(
-                f'val_loss_{loss_name}', 
+                f'vl_{loss_name}', 
                 loss,
                 on_step=False,
                 on_epoch=True,
@@ -169,11 +182,11 @@ class BaseModule(LightningModule):
                 add_dataloader_idx=False,
                 batch_size=batch[0].shape[0],
             )
-        self.update_metrics('val_metrics', preds, batch)
+        self.update_metrics('v_metrics', preds, batch)
         return total_loss
 
     def predict_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
-        _, _, preds = self.compute_loss_preds(batch, **kwargs)
+        _, _, preds = self.compute_loss_preds(batch, tta=self.tta is not None, **kwargs)
         return preds
 
     def log_metrics_and_reset(
@@ -187,9 +200,9 @@ class BaseModule(LightningModule):
         # Get metric span: train or val
         span = None
         if prefix == 'train':
-            span = 'train_metrics'
+            span = 't_metrics'
         elif prefix in ['val', 'val_ds']:
-            span = 'val_metrics'
+            span = 'v_metrics'
         
         # Get concatenated preds and targets
         # and reset them
@@ -232,38 +245,9 @@ class BaseModule(LightningModule):
 
     def on_train_epoch_end(self) -> None:
         """Called in the training loop at the very end of the epoch."""
-        if self.metrics is None:
-            return
-        assert self.cat_metrics is not None
-
-        self.log_metrics_and_reset(
-            'train',
-            on_step=False,
-            on_epoch=True,
-            prog_bar_names=self.hparams.prog_bar_names,
-            reset=True,
-        )
     
     def on_validation_epoch_end(self) -> None:
         """Called in the validation loop at the very end of the epoch."""
-        if self.metrics is None:
-            return
-        assert self.cat_metrics is not None
-
-        self.log_metrics_and_reset(
-            'val',
-            on_step=False,
-            on_epoch=True,
-            prog_bar_names=self.hparams.prog_bar_names,
-            reset=False,
-        )
-        self.log_metrics_and_reset(
-            'val_ds',
-            on_step=False,
-            on_epoch=True,
-            prog_bar_names=self.hparams.prog_bar_names,
-            reset=True,
-        )
 
     def get_lr_decayed(self, lr, layer_index, layer_name):
         """
@@ -289,6 +273,8 @@ class BaseModule(LightningModule):
 
     def build_parameter_groups(self):
         """Get parameter groups for optimizer."""
+        if self.hparams.lr_layer_decay == 1.0:
+            return self.parameters()
         names, params = list(zip(*self.named_parameters()))
         num_layers = len(params)
         grouped_parameters = [
@@ -339,6 +325,14 @@ class BaseModule(LightningModule):
                 int(milestone * total_steps / grad_accum_steps) 
                 for milestone in self.hparams.lr_scheduler_init['init_args']['milestones']
             ]
+        elif (
+            'PiecewiceFactorsLRScheduler' in self.hparams.lr_scheduler_init['class_path'] and
+            self.hparams.pl_lrs_cfg['interval'] == 'epoch'
+        ):
+            self.hparams.lr_scheduler_init['init_args']['milestones'] = [
+                int(milestone * self.trainer.max_epochs) 
+                for milestone in self.hparams.lr_scheduler_init['init_args']['milestones']
+            ]
         
         scheduler = instantiate_class(args=optimizer, init=self.hparams.lr_scheduler_init)
         scheduler = {
@@ -374,3 +368,490 @@ class BaseModule(LightningModule):
         else:
             if 'state_2.0_norm_total' in norms:
                 self.log('state_2.0_norm_total', norms['state_2.0_norm_total'])
+
+
+backbone_name_to_params = {
+    'swinv2': {
+        'window_size': (8, 8, 8),
+        # TODO: SWIN v2 has patch size 4, upsampling at 
+        # the last step degrades quality
+        'upsampling': 4,
+        'decoder_channels': (256, 128, 64),
+        'decoder_mid_channels': (256, 128, 64),
+        'decoder_out_channels': (256, 128, 64),
+        'scale_factors': (2, 2, 2),
+        'format': 'NHWC',
+    },
+    'convnext': {
+        'upsampling': 4,
+        'decoder_channels': (256, 128, 64),
+        'decoder_mid_channels': (256, 128, 64),
+        'decoder_out_channels': (256, 128, 64),
+        'format': 'NCHW',
+    },
+    'convnextv2': {
+        'upsampling': 4,
+        'decoder_channels': (256, 128, 64),
+        'decoder_mid_channels': (256, 128, 64),
+        'decoder_out_channels': (256, 128, 64),
+        'format': 'NCHW',
+    },
+    'maxvit': {
+        'upsampling': 4,
+        'decoder_channels': (256, 128, 64),
+        'decoder_mid_channels': (256, 128, 64),
+        'decoder_out_channels': (256, 128, 64),
+        'format': 'NCHW',
+    },
+    'caformer': {
+        'upsampling': 4,
+        'decoder_channels': (256, 128, 64),
+        'decoder_mid_channels': (256, 128, 64),
+        'decoder_out_channels': (256, 128, 64),
+        'format': 'NCHW',
+    },
+}
+
+
+eva02_backbone_name_to_params = {
+    'eva02_B_ade_seg_upernet_sz512': {
+        'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernet_eva02_base_12_512_slide_60k.py',
+        'ckpt_path': './scrolls/eva02_B_ade_seg_upernet_sz512.pth',
+    },
+    'eva02_L_ade_seg_upernet_sz640': {
+        'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernetpro_eva02_large_24_640_slide_80k.py',
+        'ckpt_path': './scrolls/eva02_L_ade_seg_upernet_sz640.pth',
+    },
+}
+def build_segmentation_eva02(
+    backbone_name,
+    in_channels, 
+    pretrained=True,  # on inference loaded by lightning
+    grad_checkpointing=False,
+    img_size=384,
+):
+    import sys
+
+    sys.path.insert(0, '/workspace/scrolls/lib/EVA/EVA-02/seg')
+    from backbone import eva2
+    from mmseg.models import build_segmentor
+    from mmengine.runner import load_checkpoint
+    from mmengine.config import Config
+    
+    # Get config
+    cfg_path = eva02_backbone_name_to_params[backbone_name]['cfg_path']
+    cfg = Config.fromfile(cfg_path)
+    cfg.model.decode_head.num_classes = 1
+    cfg.model.auxiliary_head.num_classes = 1
+    cfg.model.backbone.img_size = img_size
+
+    # Build model & load checkpoint
+    model = build_segmentor(
+        cfg.model,
+        train_cfg=cfg.get('train_cfg'),
+        test_cfg=cfg.get('test_cfg'))
+    if pretrained:
+        ckpt_path = eva02_backbone_name_to_params[backbone_name]['ckpt_path']
+        load_checkpoint(model, ckpt_path, map_location='cuda')
+    
+    # Patch first conv from 3 to in_channels
+    patch_first_conv(
+        model, 
+        new_in_channels=in_channels,
+        default_in_channels=3, 
+        pretrained=True,
+        conv_type=nn.Conv2d,
+    )
+    
+    # Set grad checkpointing
+    model.use_checkpoint = grad_checkpointing
+    model = Eva02Wrapper(model, scale_factor=4)
+
+    # Compile
+    model = torch.compile(model)
+
+    return model
+
+
+def build_segmentation_timm(
+    backbone_name, 
+    in_channels=1, 
+    decoder_attention_type=None, 
+    img_size=256,
+    grad_checkpointing=False,
+    pretrained=True,
+):
+    """Build segmentation model."""
+    backbone_param_key = backbone_name.split('_')[0]
+    create_model_kwargs = {}
+    if backbone_param_key == 'swinv2':
+        create_model_kwargs['img_size'] = img_size
+
+    encoder = timm.create_model(
+        backbone_name, 
+        features_only=True,
+        pretrained=pretrained,
+        **create_model_kwargs,
+    )
+
+    patch_first_conv(
+        encoder, 
+        new_in_channels=in_channels,
+        default_in_channels=3, 
+        pretrained=pretrained,
+        conv_type=nn.Conv2d,
+    )
+    encoder.set_grad_checkpointing(grad_checkpointing)
+
+    encoder = FeatureExtractorWrapper(
+        encoder, 
+        format=backbone_name_to_params[backbone_param_key]['format']
+    )
+    model = Unet(
+        encoder=encoder,
+        encoder_channels=get_feature_channels(
+            encoder, 
+            input_shape=(in_channels, img_size, img_size),
+            output_format='NCHW',
+        ),
+        decoder_channels=backbone_name_to_params[backbone_param_key]['decoder_channels'],
+        classes=1,
+        upsampling=backbone_name_to_params[backbone_param_key]['upsampling'],
+        decoder_attention_type=decoder_attention_type,
+    )
+    model = torch.compile(model)
+
+    return model
+
+
+def dice_with_logits_loss(input, target, smooth=1.0):
+    """Dice loss for logits."""
+    input = torch.sigmoid(input)
+
+    iflat = input.view(-1)
+    tflat = target.view(-1)
+    intersection = (iflat * tflat).sum()
+    
+    return 1 - ((2. * intersection + smooth) /
+              (iflat.sum() + tflat.sum() + smooth))
+
+
+class SegmentationModule(BaseModule):
+    def __init__(
+        self, 
+        decoder_attention_type: Literal[None, 'scse'] = None,
+        backbone_name: str = 'swinv2_tiny_window8_256.ms_in1k',
+        in_channels: int = 6,
+        log_preview_every_n_epochs: int = 10,
+        tta_each_n_epochs: int = 10,
+        tta_params: Dict[str, Any] = None,
+        pretrained: bool = True,
+        label_smoothing: float = 0.0,
+        pos_weight: float = 1.0,
+        optimizer_init: Optional[Dict[str, Any]] = None,
+        lr_scheduler_init: Optional[Dict[str, Any]] = None,
+        pl_lrs_cfg: Optional[Dict[str, Any]] = None,
+        finetuning: Optional[Dict[str, Any]] = None,
+        log_norm_verbose: bool = False,
+        grad_checkpointing: bool = False,
+        lr_layer_decay: Union[float, Dict[str, float]] = 1.0,
+        n_bootstrap: int = 1000,
+        skip_nan: bool = False,
+        prog_bar_names: Optional[list] = None,
+        mechanize: bool = False,
+        img_size=256,
+        loss_name: str = 'bce',
+    ):
+        super().__init__(
+            optimizer_init=optimizer_init,
+            lr_scheduler_init=lr_scheduler_init,
+            pl_lrs_cfg=pl_lrs_cfg,
+            finetuning=finetuning,
+            log_norm_verbose=log_norm_verbose,
+            lr_layer_decay=lr_layer_decay,
+            n_bootstrap=n_bootstrap,
+            skip_nan=skip_nan,
+            prog_bar_names=prog_bar_names,
+            mechanize=mechanize,
+        )
+        self.save_hyperparameters()
+
+        if backbone_name.startswith('eva02'):
+            self.model = build_segmentation_eva02(
+                in_channels=in_channels, 
+                backbone_name=backbone_name,
+                pretrained=pretrained,
+                grad_checkpointing=grad_checkpointing,
+                img_size=img_size,
+            )
+        else:
+            self.model = build_segmentation_timm(
+                backbone_name, 
+                in_channels=in_channels,
+                decoder_attention_type=decoder_attention_type,
+                img_size=img_size,
+                grad_checkpointing=grad_checkpointing,
+                pretrained=pretrained,
+            )
+
+        if finetuning is not None and finetuning['unfreeze_before_epoch'] == 0:
+            self.unfreeze()
+        else:
+            self.unfreeze_only_selected()
+
+        assert loss_name in ['bce', 'focal', 'dice'], f'Unknown loss name {loss_name}.'
+        assert tta_each_n_epochs != 0, \
+            'tta_each_n_epochs == 0 is not supported, use tta_each_n_epochs == -1 to disable TTA.'
+        if tta_params is None:
+            tta_params = {}
+        self.tta = \
+            None \
+            if tta_each_n_epochs < 0 else \
+            Tta(model=self.model, **tta_params)
+
+    def compute_loss_preds(self, batch, tta=False, *args, **kwargs):
+        """Compute losses and predictions."""
+        if tta:
+            assert self.tta is not None, 'tta is not initialized.'
+            preds = self.tta(batch['image'])
+        else:
+            preds = self.model(batch['image'])
+        
+        if 'mask' not in batch:
+            return None, None, preds
+
+        if self.hparams.loss_name == 'bce':
+            # 3d_acs_weights outputs probabilities, not logits
+            weight = torch.where(
+                batch['mask'] == 1,
+                torch.tensor(self.hparams.pos_weight, dtype=torch.float32, device=batch['mask'].device),
+                torch.tensor(1.0, dtype=torch.float32, device=batch['mask'].device),
+            ).flatten()
+            loss_value = F.binary_cross_entropy_with_logits(
+                preds.squeeze(1).float().flatten(),
+                batch['mask'].float().flatten(),
+                reduction='mean',
+                weight=weight,
+            )
+        elif self.hparams.loss_name == 'focal':
+            loss_value = sigmoid_focal_loss(
+                preds.squeeze(1).float().flatten(),
+                batch['mask'].float().flatten(),
+                reduction='mean',
+                # alpha is in [0, 1] with negative weight assigned to 1 - alpha 
+                # and pos_weight is absolute assuming negative weight is 1.0
+                # so it need to be converted
+                alpha=self.hparams.pos_weight / (1.0 + self.hparams.pos_weight),
+            )
+        elif self.hparams.loss_name == 'dice':
+            loss_value = dice_with_logits_loss(
+                preds.squeeze(1).float().flatten(),
+                batch['mask'].float().flatten(),
+            )
+        
+        losses = {
+            self.hparams.loss_name: loss_value,
+        }
+        total_loss = sum(losses.values())
+        return total_loss, losses, preds
+
+    def configure_metrics(self):
+        """Configure task-specific metrics."""
+        val_metrics = ModuleDict(
+            {
+                'preview': PredictionTargetPreviewAgg(
+                    preview_downscale=32,
+                    metrics=ModuleDict(
+                        {
+                            'f05': BinaryFBetaScore(beta=0.5),
+                        }
+                    ),
+                    input_std=sum(IMAGENET_DEFAULT_STD) / 3,
+                    input_mean=sum(IMAGENET_DEFAULT_MEAN) / 3,
+                    fill_value=0.0,
+                    overlap_avg_weight_mode='spline',
+                ),
+            }
+        )
+        self.metrics = ModuleDict(
+            {
+                't_metrics': ModuleDict(
+                    {
+                        'preview': PredictionTargetPreviewGrid(preview_downscale=16, n_images=9),
+                    }
+                ),
+                'v_metrics': deepcopy(val_metrics),
+                'v_tta_metrics': deepcopy(val_metrics),
+            }
+        )
+        self.cat_metrics = None
+
+    def training_step(self, batch, batch_idx, **kwargs):
+        total_loss, losses, preds = self.compute_loss_preds(batch, tta=False, **kwargs)
+        for loss_name, loss in losses.items():
+            self.log(
+                f'tl_{loss_name}', 
+                loss,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=True,
+                batch_size=batch['image'].shape[0],
+            )
+        
+        y, y_pred = self.extract_targets_and_probas_for_metric(preds, batch)
+        for metric_name, metric in self.metrics['t_metrics'].items():
+            if isinstance(metric, PredictionTargetPreviewGrid):  # Epoch-level
+                metric.update(
+                    batch['image'][:, :3, ...],
+                    y_pred, 
+                    y, 
+                    pathes=batch['path'],
+                )
+            else:
+                metric.update(y_pred.flatten(), y.flatten())
+                self.log(
+                    f't_{metric_name}',
+                    metric.compute(),
+                    on_step=True,
+                    on_epoch=True,
+                    prog_bar=True,
+                    batch_size=batch['image'].shape[0],
+                )
+                metric.reset()
+
+        # Handle nan in loss
+        has_nan = False
+        if torch.isnan(total_loss):
+            has_nan = True
+            logger.warning(
+                f'Loss is nan at epoch {self.current_epoch} '
+                f'step {self.global_step}.'
+            )
+        for loss_name, loss in losses.items():
+            if torch.isnan(loss):
+                has_nan = True
+                logger.warning(
+                    f'Loss {loss_name} is nan at epoch {self.current_epoch} '
+                    f'step {self.global_step}.'
+                )
+        if has_nan:
+            return None
+        
+        return total_loss
+    
+    def _validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, tta=False, **kwargs) -> Tensor:
+        loss_prefix = 'vl' if not tta else 'vl_tta'
+        total_loss, losses, preds = self.compute_loss_preds(batch, tta=tta, **kwargs)
+        assert dataloader_idx is None or dataloader_idx == 0, 'Only one val dataloader is supported.'
+        for loss_name, loss in losses.items():
+            self.log(
+                f'{loss_prefix}_{loss_name}', 
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                add_dataloader_idx=False,
+                batch_size=batch['image'].shape[0],
+            )
+        
+        span_prefix = 'v' if not tta else 'v_tta'
+        y, y_pred = self.extract_targets_and_probas_for_metric(preds, batch)
+        for metric in self.metrics[f'{span_prefix}_metrics'].values():
+            if isinstance(metric, PredictionTargetPreviewAgg) and batch['indices'] is not None:
+                metric.update(
+                    arrays={
+                        'input': batch['image'][..., batch['image'].shape[-1] // 2],
+                        'probas': y_pred,
+                        'target': y,
+                    },
+                    pathes=batch['path'],
+                    patch_size=y_pred.shape[-2:],
+                    indices=batch['indices'], 
+                    shape_patches=batch['shape_patches'],
+                    shape_original=batch['shape_original'],
+                    shape_before_padding=batch['shape_before_padding'],
+                )
+            else:
+                metric.update(y_pred.flatten(), y.flatten())
+        return total_loss
+    
+    def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
+        tta = self.tta is not None and self.current_epoch % self.hparams.tta_each_n_epochs == 0
+        result = self._validation_step(batch, batch_idx, dataloader_idx, tta=False, **kwargs)
+        if tta:
+            self._validation_step(batch, batch_idx, dataloader_idx, tta=True, **kwargs)
+        return result
+
+    def predict_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
+        _, _, preds = self.compute_loss_preds(batch, tta=self.tta is not None, **kwargs)
+        return preds
+
+    def on_train_epoch_end(self) -> None:
+        """Called in the training loop at the very end of the epoch."""
+        if self.metrics is None:
+            return
+
+        for metric_name, metric in self.metrics['t_metrics'].items():
+            if isinstance(metric, PredictionTargetPreviewGrid):
+                captions, previews = metric.compute()
+                metric.reset()
+                if self.current_epoch % self.hparams.log_preview_every_n_epochs == 0:
+                    self.trainer.logger.log_image(
+                        key=f't_{metric_name}',	
+                        images=previews,
+                        caption=captions,
+                        step=self.current_epoch,
+                    )
+
+    def _on_validation_epoch_end(self, tta) -> None:
+        """Called in the validation loop at the very end of the epoch."""
+        if self.metrics is None:
+            return
+
+        metric_prefix = span_prefix = 'v' if not tta else 'v_tta'
+        for metric_name, metric in self.metrics[f'{span_prefix}_metrics'].items():
+            if isinstance(metric, PredictionTargetPreviewAgg):
+                metric_values, captions, previews = metric.compute()
+                if self.current_epoch % self.hparams.log_preview_every_n_epochs == 0:
+                    self.trainer.logger.log_image(
+                        key=f'{metric_prefix}_{metric_name}',	
+                        images=previews,
+                        caption=captions,
+                        step=self.current_epoch,
+                    )
+                for name, value in metric_values.items():
+                    self.log(
+                        f'{metric_prefix}_{name}',
+                        value,
+                        on_step=False,
+                        on_epoch=True,
+                        prog_bar=True,
+                    )
+            else:
+                self.log(
+                    f'{metric_prefix}_{metric_name}',
+                    metric.compute(),
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=True,
+                )
+            metric.reset()
+
+    def on_validation_epoch_end(self) -> None:
+        tta = self.tta is not None and self.current_epoch % self.hparams.tta_each_n_epochs == 0
+        self._on_validation_epoch_end(tta=False)
+        if tta:
+            self._on_validation_epoch_end(tta=True)
+
+    def extract_targets_and_probas_for_metric(self, preds, batch):
+        """Extract preds and targets from batch.
+        Could be overriden for custom batch / prediction structure.
+        """
+        y = None
+        y_pred = torch.sigmoid(preds.detach().float()).squeeze(1)
+        
+        if 'mask' in batch:
+            y = batch['mask'].detach()
+            y, y_pred = self.remove_nans(y, y_pred)
+        
+        return y, y_pred

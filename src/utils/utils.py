@@ -1,8 +1,25 @@
-from typing import Dict, Optional, Union
+import cv2
+import logging
+import numpy as np
+import scipy
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import default_collate
+from weakref import proxy
+from pathlib import Path
+from patchify import NonUniformStepSizeError, unpatchify
+from collections import defaultdict
+from typing import Dict, Optional, Union, Tuple
 from lightning import Trainer
 from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger, TensorBoardLogger
+from timm.layers.format import nhwc_to, Format
+from torchvision.utils import make_grid
+
+
+logger = logging.getLogger(__name__)
 
 
 ###################################################################
@@ -422,3 +439,80 @@ class PredictionTargetPreviewGrid(nn.Module):
         ]
 
         return captions, preview_grids
+
+
+class FeatureExtractorWrapper(nn.Module):
+    def __init__(self, model, format: Format | str = 'NHWC'):
+        super().__init__()
+        self.model = model
+        self.output_stride = 32
+        self.format = format if isinstance(format, Format) else Format(format)
+
+    def __iter__(self):
+        return iter(self.model)
+    
+    def forward(self, x):
+        if self.format == Format('NHWC'):
+            features = [nhwc_to(y, Format('NCHW')) for y in self.model(x)]
+        else:
+            features = self.model(x)
+        return features
+
+
+class Eva02Wrapper(nn.Module):
+    def __init__(self, model, scale_factor=4):
+        super().__init__()
+        self.model = model
+        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor)
+    
+    def forward(self, x):
+        # (B, 1, H, W, D) -> (B, D, H, W)
+        x = x.squeeze(1).permute(0, 3, 1, 2).contiguous()
+        x = self.model(x)
+        # # Remove the channel (single class) dimension
+        # # (B, 1, H, W) -> (B, H, W)
+        # x = x.squeeze(1)
+        # Upsample to original size
+        x = self.upsampling(x)
+        return x
+
+
+def get_feature_channels(model, input_shape, output_format='NHWC'):
+    is_training = model.training
+    model.eval()
+    
+    x = torch.randn(1, *input_shape).to(next(model.parameters()).device)
+    with torch.no_grad():
+        y = model(x)
+    channel_index = output_format.find('C')
+    assert channel_index != -1, \
+        f'output_format {output_format} not supported, must contain C'
+    assert all(len(output_format) == len(y_.shape) for y_ in y), \
+        f'output_format {output_format} does not match output shape {y[0].shape}'
+    result = tuple(y_.shape[channel_index] for y_ in y)
+    logger.info(f'feature channels: {result}')
+    
+    model.train(is_training)
+    
+    return result
+
+
+def contrails_collate_fn(batch):
+    """Collate function for surface volume dataset.
+    batch: list of dicts of key:str, value: np.ndarray | list | None
+    output: dict of torch.Tensor
+    """
+    output = defaultdict(list)
+    for sample in batch:
+        for k, v in sample.items():
+            if v is None:
+                continue
+            output[k].append(v)
+    
+    for k, v in output.items():
+        if isinstance(v[0], str) or v[0].dtype == object:
+            output[k] = v
+        else:
+            output[k] = default_collate(v)
+    
+    return output

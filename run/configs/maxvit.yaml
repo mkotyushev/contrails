@@ -1,0 +1,3 @@
+model:
+  init_args:
+    backbone_name: maxvit_rmlp_base_rw_384.sw_in12k_ft_in1k

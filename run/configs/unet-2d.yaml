@@ -1,0 +1,135 @@
+seed_everything: 0
+trainer:
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      project: contrails
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+    # - class_path: src.utils.utils.ModelCheckpointNoSave
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        save_top_k: 1
+        monitor: v_f05
+        every_n_epochs: 1
+        mode: max
+        save_on_train_epoch_end: false
+        save_last: true
+    - class_path: src.utils.utils.ModelCheckpointNoSave
+      init_args:
+        save_top_k: 1
+        monitor: vl_bce
+        every_n_epochs: 1
+        mode: min
+        save_on_train_epoch_end: false
+        save_last: true
+
+  # limit_train_batches: 10
+  # limit_val_batches: 10
+  max_epochs: 48
+  num_sanity_val_steps: 0
+  accumulate_grad_batches: 1
+  reload_dataloaders_every_n_epochs: 0
+  log_every_n_steps: 1
+  gradient_clip_val: 5
+  check_val_every_n_epoch: 1
+  precision: 16-mixed
+
+  gradient_clip_algorithm: norm
+  deterministic: true
+  benchmark: false
+  enable_checkpointing: true
+
+  fast_dev_run: false
+  profiler: null
+  detect_anomaly: false
+  
+  min_epochs: null
+  max_steps: -1
+  min_steps: null
+  max_time: null
+  limit_test_batches: null
+  limit_predict_batches: null
+  overfit_batches: 0.0
+  val_check_interval: null
+  enable_progress_bar: null
+  enable_model_summary: null
+  inference_mode: true
+  use_distributed_sampler: true
+  barebones: false
+  plugins: null
+  sync_batchnorm: false
+  default_root_dir: null
+  accelerator: auto
+  strategy: auto
+  devices: auto
+  num_nodes: 1
+model:
+  class_path: src.model.modules.SegmentationModule
+  init_args:
+    decoder_attention_type: null
+    in_channels: 9
+    img_size: 384
+    backbone_name: null
+    log_preview_every_n_epochs: 5
+    tta_each_n_epochs: -1
+    tta_params: 
+      n_random_replays: 0
+      use_hflip: true
+      use_vflip: true
+      rotate90_indices: [1, 2, 3]
+    pretrained: true
+    mechanize: false
+    loss_name: bce
+    pos_weight: 1.0
+    label_smoothing: 0.0
+    optimizer_init: 
+      class_path: torch.optim.AdamW
+      init_args:
+        weight_decay: 1e-6
+        lr: 1e-4
+        eps: 1e-08
+    lr_scheduler_init:
+      class_path: src.utils.lr_scheduler.PiecewiceFactorsLRScheduler
+      init_args:
+        milestones: [0, 0.1, 1.0]
+        pieces:
+          - class_path: src.utils.lr_scheduler.LinearLRSchedulerPiece
+            init_args:
+              start_lr: 1e-1
+              stop_lr: 1
+          - class_path: src.utils.lr_scheduler.CosineLRSchedulerPiece
+            init_args:
+              start_lr: 1
+              stop_lr: 1e-2
+    pl_lrs_cfg:
+      interval: step
+      frequency: 1
+    finetuning: null
+    lr_layer_decay: 1.0
+    log_norm_verbose: false
+    n_bootstrap: 0
+    skip_nan: false
+    prog_bar_names: 
+      - f05
+    grad_checkpointing: false
+data:
+  class_path: src.data.datamodules.ContrailsDatamodule
+  init_args:
+    data_dirs: 
+      - /workspace/data/train
+      - /workspace/data/validation
+    data_dirs_test: null
+    mmap: true
+    num_folds: 5
+    fold_index: 0
+    img_size: 384
+    random_state: 0
+    mix_transform_name: null
+    batch_size: 16
+    num_workers: 4
+    pin_memory: false
+    prefetch_factor: 2
+    persistent_workers: true
