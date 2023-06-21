@@ -1,7 +1,8 @@
+from copy import deepcopy
 import logging
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Tuple, Literal
+from typing import Any, List, Optional, Tuple, Literal
 
 
 BANDS = (8, 9, 10, 11, 12, 13, 14, 15, 16)
@@ -48,11 +49,14 @@ def get_images(data, type_='all', mult=1.0, precomputed=False):
     band11 = data[11]
     band14 = data[14]
     band15 = data[15]
-    if type_ == 'false':
+    if type_.startswith('false'):
         r = normalize_range(band15 - band14, _TDIFF_BOUNDS)
         g = normalize_range(band14 - band11, _CLOUD_TOP_TDIFF_BOUNDS)
         b = normalize_range(band14, _T11_BOUNDS)
         images = np.clip(np.stack([r, g, b], axis=2), 0, 1) * mult
+        if type_ == 'falseq':
+            assert mult == 255.0
+            images = images.astype(np.uint8)
     elif type_ == 'minmax3':
         r = (band11 - band11.min()) / (band11.max() - band11.min())
         g = (band14 - band14.min()) / (band14.max() - band14.min())
@@ -106,14 +110,16 @@ class ContrailsDataset:
         transform=None,
         conversion_type: Literal[
             'false', 
+            'falseq', 
             'minmax3', 
             'minmax1', 
             'all', 
             'minmaxall', 
             'quantilesall', 
             'meanstdall'
-        ] = 'all',
+        ] = 'falseq',
         stats_precomputed: bool = False,
+        shared_cache: Optional[Any] = None,
     ):
         self.record_dirs = record_dirs
         self.records = None
@@ -129,13 +135,14 @@ class ContrailsDataset:
         self.transform = transform
         self.conversion_type = conversion_type
         self.stats_precomputed = stats_precomputed
+        self.shared_cache = shared_cache
     
     def __len__(self):
         if self.propagate_mask:
             return len(self.record_dirs) * N_TIMES
         return len(self.record_dirs)
 
-    def __getitem__(self, idx):
+    def _get_item(self, idx):
         if self.propagate_mask:
             # Load all the times to use in propagation
             record_idx = idx // N_TIMES
@@ -162,7 +169,7 @@ class ContrailsDataset:
         image = get_images(
             data, 
             type_=self.conversion_type, 
-            mult=1.0,
+            mult=255.0,
             precomputed=self.stats_precomputed,
         )  # (H, W, C, T)
         
@@ -232,10 +239,21 @@ class ContrailsDataset:
             'mask': mask,  # (H, W)
             'path': str(record_dir),
         }
+        
+        return output
+
+    def __getitem__(self, idx):
+        # Get item from cache or load it
+        if self.shared_cache is not None and idx in self.shared_cache:
+            output = self.shared_cache[idx]
+        else:
+            logger.debug(f'Cache miss, adding: {idx}')
+            output = self._get_item(idx)
+            # TODO: check if deepcopy is needed
+            self.shared_cache[idx] = deepcopy(output)
 
         # Apply transform
         if self.transform is not None:
             output = self.transform(**output)
-        
-        return output
 
+        return output

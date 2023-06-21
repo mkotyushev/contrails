@@ -1,11 +1,13 @@
 import logging
 import albumentations as A
+import multiprocessing as mp
 from pathlib import Path
 from typing import List, Optional
 from lightning import LightningDataModule
 from sklearn.model_selection import KFold
 from torch.utils.data import DataLoader
 from albumentations.pytorch import ToTensorV2
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 from src.data.datasets import MEAN, STD, ContrailsDataset, BANDS
 from src.data.transforms import (
@@ -65,8 +67,8 @@ class ContrailsDatamodule(LightningDataModule):
         self.val_transform = None
         self.test_transform = None
 
-        self.train_volume_mean = MEAN
-        self.train_volume_std = STD
+        self.train_volume_mean = IMAGENET_DEFAULT_MEAN
+        self.train_volume_std = IMAGENET_DEFAULT_STD
 
         self.collate_fn = contrails_collate_fn
 
@@ -113,7 +115,7 @@ class ContrailsDatamodule(LightningDataModule):
                     mask_fill_value=0, p=0.5
                 ),
                 A.Normalize(
-                    max_pixel_value=1.0,
+                    max_pixel_value=255.0,
                     mean=self.train_volume_mean,
                     std=self.train_volume_std,
                     always_apply=True,
@@ -194,6 +196,7 @@ class ContrailsDatamodule(LightningDataModule):
 
         # Train
         if self.train_dataset is None and train_record_dirs:
+            cache = mp.Manager().dict()
             self.train_dataset = ContrailsDataset(
                 record_dirs=train_record_dirs, 
                 band_ids=self.hparams.band_ids,
@@ -201,9 +204,11 @@ class ContrailsDatamodule(LightningDataModule):
                 propagate_mask=False,
                 mmap=self.hparams.mmap,
                 transform=self.train_transform,
+                shared_cache=cache,
             )
 
         if self.val_dataset is None and val_record_dirs:
+            cache = mp.Manager().dict()
             self.val_dataset = ContrailsDataset(
                 record_dirs=val_record_dirs, 
                 band_ids=self.hparams.band_ids,
@@ -211,6 +216,7 @@ class ContrailsDatamodule(LightningDataModule):
                 propagate_mask=False,
                 mmap=self.hparams.mmap,
                 transform=self.val_transform,
+                shared_cache=cache,
             )
 
         if self.test_dataset is None and self.hparams.data_dirs_test is not None:
