@@ -571,7 +571,7 @@ def build_segmentation_hf(
     return model
 
 
-def dice_with_logits_loss(input, target, smooth=1.0):
+def dice_with_logits_loss(input, target, smooth=1.0, pos_weight=1.0):
     """Dice loss for logits."""
     input = torch.sigmoid(input)
 
@@ -579,8 +579,8 @@ def dice_with_logits_loss(input, target, smooth=1.0):
     tflat = target.view(-1)
     intersection = (iflat * tflat).sum()
     
-    return 1 - ((2. * intersection + smooth) /
-              (iflat.sum() + tflat.sum() + smooth))
+    return 1 - ((2. * intersection * pos_weight + smooth) /
+              (iflat.sum() + pos_weight * tflat.sum() + smooth))
 
 
 class SegmentationModule(BaseModule):
@@ -705,6 +705,7 @@ class SegmentationModule(BaseModule):
             loss_value = dice_with_logits_loss(
                 preds.squeeze(1).float().flatten(),
                 batch['mask'].float().flatten(),
+                pos_weight=torch.tensor(self.hparams.pos_weight, dtype=torch.float32, device=batch['mask'].device),
             )
         
         losses = {
