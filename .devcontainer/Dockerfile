@@ -7,7 +7,7 @@ WORKDIR /workspace/contrails
 # Apt-get installs
 RUN \
     apt update && \
-    apt-get -y install git zip unzip wget tmux curl libgl1 libglib2.0-0 imagemagick
+    apt-get -y install git zip unzip wget tmux curl libgl1 libglib2.0-0 imagemagick g++9
 
 # Install Miniconda
 RUN \
