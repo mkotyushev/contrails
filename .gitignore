@@ -3,6 +3,7 @@
 lightning_logs/
 wandb/
 contrails/
+pretrained/
 pipe/
 *.csv
 *.log
