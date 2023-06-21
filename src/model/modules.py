@@ -467,9 +467,6 @@ def build_segmentation_eva02(
     model.use_checkpoint = grad_checkpointing
     model = Eva02Wrapper(model, scale_factor=4)
 
-    # Compile
-    model = torch.compile(model)
-
     return model
 
 
@@ -519,7 +516,6 @@ def build_segmentation_timm(
         upsampling=backbone_name_to_params[backbone_param_key]['upsampling'],
         decoder_attention_type=decoder_attention_type,
     )
-    model = torch.compile(model)
 
     return model
 
@@ -561,6 +557,7 @@ class SegmentationModule(BaseModule):
         mechanize: bool = False,
         img_size=256,
         loss_name: str = 'bce',
+        compile: bool = False,
     ):
         super().__init__(
             optimizer_init=optimizer_init,
@@ -593,6 +590,9 @@ class SegmentationModule(BaseModule):
                 grad_checkpointing=grad_checkpointing,
                 pretrained=pretrained,
             )
+
+        if compile:
+            self.model = torch.compile(self.model)
 
         if finetuning is not None and finetuning['unfreeze_before_epoch'] == 0:
             self.unfreeze()
