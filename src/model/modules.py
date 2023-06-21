@@ -12,7 +12,6 @@ from lightning.pytorch.cli import instantiate_class
 from torchmetrics import Metric
 from torchmetrics.classification import BinaryFBetaScore
 from lightning.pytorch.utilities import grad_norm
-from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from torchvision.ops import sigmoid_focal_loss
 
 from src.data.transforms import Tta
@@ -657,31 +656,17 @@ class SegmentationModule(BaseModule):
 
     def configure_metrics(self):
         """Configure task-specific metrics."""
-        val_metrics = ModuleDict(
+        metrics = ModuleDict(
             {
-                'preview': PredictionTargetPreviewAgg(
-                    preview_downscale=32,
-                    metrics=ModuleDict(
-                        {
-                            'f05': BinaryFBetaScore(beta=0.5),
-                        }
-                    ),
-                    input_std=sum(IMAGENET_DEFAULT_STD) / 3,
-                    input_mean=sum(IMAGENET_DEFAULT_MEAN) / 3,
-                    fill_value=0.0,
-                    overlap_avg_weight_mode='spline',
-                ),
+                'preview': PredictionTargetPreviewGrid(preview_downscale=4, n_images=9),
+                'f1': BinaryFBetaScore(beta=1.0),
             }
         )
         self.metrics = ModuleDict(
             {
-                't_metrics': ModuleDict(
-                    {
-                        'preview': PredictionTargetPreviewGrid(preview_downscale=16, n_images=9),
-                    }
-                ),
-                'v_metrics': deepcopy(val_metrics),
-                'v_tta_metrics': deepcopy(val_metrics),
+                't_metrics': deepcopy(metrics),
+                'v_metrics': deepcopy(metrics),
+                'v_tta_metrics': deepcopy(metrics),
             }
         )
         self.cat_metrics = None
@@ -760,7 +745,7 @@ class SegmentationModule(BaseModule):
             if isinstance(metric, PredictionTargetPreviewAgg) and batch['indices'] is not None:
                 metric.update(
                     arrays={
-                        'input': batch['image'][..., batch['image'].shape[-1] // 2],
+                        'input': batch['image'][:, :3, ...],
                         'probas': y_pred,
                         'target': y,
                     },
@@ -770,6 +755,13 @@ class SegmentationModule(BaseModule):
                     shape_patches=batch['shape_patches'],
                     shape_original=batch['shape_original'],
                     shape_before_padding=batch['shape_before_padding'],
+                )
+            elif isinstance(metric, PredictionTargetPreviewGrid):  # Epoch-level
+                metric.update(
+                    batch['image'][:, :3, ...],
+                    y_pred, 
+                    y, 
+                    pathes=batch['path'],
                 )
             else:
                 metric.update(y_pred.flatten(), y.flatten())
@@ -794,7 +786,6 @@ class SegmentationModule(BaseModule):
         for metric_name, metric in self.metrics['t_metrics'].items():
             if isinstance(metric, PredictionTargetPreviewGrid):
                 captions, previews = metric.compute()
-                metric.reset()
                 if self.current_epoch % self.hparams.log_preview_every_n_epochs == 0:
                     self.trainer.logger.log_image(
                         key=f't_{metric_name}',	
@@ -802,6 +793,15 @@ class SegmentationModule(BaseModule):
                         caption=captions,
                         step=self.current_epoch,
                     )
+            else:
+                self.log(
+                    f't_{metric_name}',
+                    metric.compute(),
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=True,
+                )
+            metric.reset()
 
     def _on_validation_epoch_end(self, tta) -> None:
         """Called in the validation loop at the very end of the epoch."""
@@ -826,6 +826,16 @@ class SegmentationModule(BaseModule):
                         on_step=False,
                         on_epoch=True,
                         prog_bar=True,
+                    )
+            elif isinstance(metric, PredictionTargetPreviewGrid):
+                captions, previews = metric.compute()
+                metric.reset()
+                if self.current_epoch % self.hparams.log_preview_every_n_epochs == 0:
+                    self.trainer.logger.log_image(
+                        key=f'v_{metric_name}',	
+                        images=previews,
+                        caption=captions,
+                        step=self.current_epoch,
                     )
             else:
                 self.log(

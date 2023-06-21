@@ -12,7 +12,7 @@ trainer:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         save_top_k: 1
-        monitor: v_f05
+        monitor: v_f1
         every_n_epochs: 1
         mode: max
         save_on_train_epoch_end: false
@@ -113,7 +113,7 @@ model:
     n_bootstrap: 0
     skip_nan: false
     prog_bar_names: 
-      - f05
+      - f1
     grad_checkpointing: false
     compile: false
 data:
