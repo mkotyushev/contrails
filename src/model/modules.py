@@ -793,15 +793,6 @@ class SegmentationModule(BaseModule):
                         caption=captions,
                         step=self.current_epoch,
                     )
-            else:
-                self.log(
-                    f't_{metric_name}',
-                    metric.compute(),
-                    on_step=False,
-                    on_epoch=True,
-                    prog_bar=True,
-                )
-            metric.reset()
 
     def _on_validation_epoch_end(self, tta) -> None:
         """Called in the validation loop at the very end of the epoch."""
