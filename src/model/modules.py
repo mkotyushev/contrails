@@ -880,7 +880,7 @@ class SegmentationModule(BaseModule):
                         caption=captions,
                         step=self.current_epoch,
                     )
-                metric.reset()
+            metric.reset()
 
     def on_validation_epoch_end(self) -> None:
         """Called in the validation loop at the very end of the epoch."""
