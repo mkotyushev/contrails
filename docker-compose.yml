@@ -7,7 +7,7 @@ services:
     build:
       context: .
       dockerfile: .devcontainer/Dockerfile
-    shm_size: '2gb'
+    shm_size: '16gb'
     environment:
       - SSH_AUTH_SOCK:${SSH_AUTH_SOCK}
     volumes:
