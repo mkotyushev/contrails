@@ -9,14 +9,13 @@ from lightning import LightningModule
 from typing import Any, Dict, Literal, Optional, Union
 from torch import Tensor
 from lightning.pytorch.cli import instantiate_class
-from torchmetrics import Metric
-from torchmetrics.classification import BinaryFBetaScore
+from torchmetrics import Dice, Metric
 from lightning.pytorch.utilities import grad_norm
 from torchvision.ops import sigmoid_focal_loss
 from transformers import SegformerForSemanticSegmentation
 
 from src.data.transforms import Tta
-from src.model.smp import Unet, patch_first_conv
+from src.model.smp import Unet, patch_first_conv, DiceLoss
 from src.utils.mechanic import mechanize
 from src.utils.utils import (
     FeatureExtractorWrapper, 
@@ -725,11 +724,8 @@ class SegmentationModule(BaseModule):
                 alpha=self.hparams.pos_weight / (1.0 + self.hparams.pos_weight),
             )
         elif self.hparams.loss_name == 'dice':
-            loss_value = dice_with_logits_loss(
-                preds.squeeze(1).float().flatten(),
-                batch['mask'].float().flatten(),
-                pos_weight=torch.tensor(self.hparams.pos_weight, dtype=torch.float32, device=batch['mask'].device),
-            )
+            loss_fn = DiceLoss(mode="binary", smooth=1.0)
+            loss_value = loss_fn(preds, batch['mask'])
         elif self.hparams.loss_name == 'gdl':
             loss_value = gdl(
                 preds.squeeze(1).float().flatten(),
@@ -748,7 +744,7 @@ class SegmentationModule(BaseModule):
         metrics = ModuleDict(
             {
                 'preview': PredictionTargetPreviewGrid(preview_downscale=4, n_images=9),
-                'f1': BinaryFBetaScore(beta=1.0),
+                'dice': Dice(average='micro'),
             }
         )
         self.metrics = ModuleDict(
@@ -771,6 +767,14 @@ class SegmentationModule(BaseModule):
                 prog_bar=True,
                 batch_size=batch['image'].shape[0],
             )
+        self.log(
+            f'tl', 
+            total_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=batch['image'].shape[0],
+        )
         
         y, y_pred = self.extract_targets_and_probas_for_metric(preds, batch)
         for metric_name, metric in self.metrics['t_metrics'].items():
