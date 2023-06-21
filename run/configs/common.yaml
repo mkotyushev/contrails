@@ -30,7 +30,7 @@ trainer:
   # limit_val_batches: 10
   max_epochs: 20
   num_sanity_val_steps: 0
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 4
   reload_dataloaders_every_n_epochs: 0
   log_every_n_steps: 1
   gradient_clip_val: 5
@@ -130,7 +130,7 @@ data:
     img_size: 256
     random_state: 0
     mix_transform_name: null
-    batch_size: 32
+    batch_size: 16
     num_workers: 8
     pin_memory: true
     prefetch_factor: 1
