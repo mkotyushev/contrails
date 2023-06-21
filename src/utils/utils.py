@@ -36,6 +36,19 @@ class MyLightningCLI(LightningCLI):
         return
 
 
+    def before_instantiate_classes(self) -> None:
+        """Implement to run some code before instantiating the classes."""
+        if (
+            self.config['fit']['model']['init_args']['backbone_name'].startswith('nvidia') or
+            self.config['fit']['model']['init_args']['backbone_name'].startswith('eva02')
+        ):
+            if self.config['fit']['trainer']['deterministic']:
+                logger.warning(
+                    'Deterministic training is not supported with NVIDIA or Eva02 models. '
+                    'Setting `deterministic=False`.'
+                )
+            self.config['fit']['trainer']['deterministic'] = False
+
 
 class TrainerWandb(Trainer):
     """Hotfix for wandb logger saving config & artifacts to project root dir
@@ -466,8 +479,6 @@ class Eva02Wrapper(nn.Module):
         self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor)
     
     def forward(self, x):
-        # (B, 1, H, W, D) -> (B, D, H, W)
-        x = x.squeeze(1).permute(0, 3, 1, 2).contiguous()
         x = self.model(x)
         # # Remove the channel (single class) dimension
         # # (B, 1, H, W) -> (B, H, W)

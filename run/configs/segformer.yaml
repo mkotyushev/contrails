@@ -1,5 +1,3 @@
-trainer:
-  deterministic: false
 model:
   init_args:
     backbone_name: nvidia/mit-b5
