@@ -44,7 +44,7 @@ def normalize_range(data, bounds):
     return (data - bounds[0]) / (bounds[1] - bounds[0])
 
 
-def get_images(data, type_='false', mult=1.0, precomputed=False):
+def get_images(data, type_='all', mult=1.0, precomputed=False):
     band11 = data[11]
     band14 = data[14]
     band15 = data[15]
@@ -67,26 +67,29 @@ def get_images(data, type_='false', mult=1.0, precomputed=False):
             bands.append(data[band])
         images = np.stack(bands, axis=2)
 
-        if precomputed:
-            if type_ == 'minmaxall':
-                subtract = MIN
-                divide = MAX - subtract
-            elif type_ == 'quantilesall':
-                subtract = QUANTILES[0.05]
-                divide = QUANTILES[0.95] - subtract
-            elif type_ == 'meanstdall':
-                subtract = MEAN
-                divide = STD
+        if type_ == 'all':
+            subtract, divide = 0, 1
         else:
-            if type_ == 'minmaxall':
-                subtract = images.min()
-                divide = images.max() - subtract
-            elif type_ == 'quantilesall':
-                subtract = np.quantile(images, 0.05)
-                divide = np.quantile(images, 0.95) - subtract
-            elif type_ == 'meanstdall':
-                subtract = images.mean()
-                divide = images.std()
+            if precomputed:
+                if type_ == 'minmaxall':
+                    subtract = MIN
+                    divide = MAX - subtract
+                elif type_ == 'quantilesall':
+                    subtract = QUANTILES[0.05]
+                    divide = QUANTILES[0.95] - subtract
+                elif type_ == 'meanstdall':
+                    subtract = MEAN
+                    divide = STD
+            else:
+                if type_ == 'minmaxall':
+                    subtract = images.min()
+                    divide = images.max() - subtract
+                elif type_ == 'quantilesall':
+                    subtract = np.quantile(images, 0.05)
+                    divide = np.quantile(images, 0.95) - subtract
+                elif type_ == 'meanstdall':
+                    subtract = images.mean()
+                    divide = images.std()
         images = (images - subtract) / divide
         
     return images
@@ -109,8 +112,8 @@ class ContrailsDataset:
             'minmaxall', 
             'quantilesall', 
             'meanstdall'
-        ] = 'meanstdall',
-        stats_precomputed: bool = True,
+        ] = 'all',
+        stats_precomputed: bool = False,
     ):
         self.record_dirs = record_dirs
         self.records = None

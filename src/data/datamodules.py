@@ -7,7 +7,7 @@ from sklearn.model_selection import KFold
 from torch.utils.data import DataLoader
 from albumentations.pytorch import ToTensorV2
 
-from src.data.datasets import ContrailsDataset, BANDS
+from src.data.datasets import MEAN, STD, ContrailsDataset, BANDS
 from src.data.transforms import (
     CopyPastePositive,
     CutMix,
@@ -65,8 +65,8 @@ class ContrailsDatamodule(LightningDataModule):
         self.val_transform = None
         self.test_transform = None
 
-        self.train_volume_mean = 0
-        self.train_volume_std = 1
+        self.train_volume_mean = MEAN
+        self.train_volume_std = STD
 
         self.collate_fn = contrails_collate_fn
 
@@ -113,7 +113,7 @@ class ContrailsDatamodule(LightningDataModule):
                     mask_fill_value=0, p=0.5
                 ),
                 A.Normalize(
-                    max_pixel_value=255,
+                    max_pixel_value=1.0,
                     mean=self.train_volume_mean,
                     std=self.train_volume_std,
                     always_apply=True,
