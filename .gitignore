@@ -3,6 +3,5 @@
 lightning_logs/
 wandb/
 pipe/
-data/
 *.csv
 *.log
