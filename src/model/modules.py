@@ -826,6 +826,15 @@ class SegmentationModule(BaseModule):
                 add_dataloader_idx=False,
                 batch_size=batch['image'].shape[0],
             )
+        self.log(
+            f'vl', 
+            total_loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            add_dataloader_idx=False,
+            batch_size=batch['image'].shape[0],
+        )
         
         span_prefix = 'v' if not tta else 'v_tta'
         y, y_pred = self.extract_targets_and_probas_for_metric(preds, batch)
