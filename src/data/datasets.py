@@ -11,6 +11,29 @@ N_TIMES = 8
 _T11_BOUNDS = (243, 303)
 _CLOUD_TOP_TDIFF_BOUNDS = (-4, 5)
 _TDIFF_BOUNDS = (-4, 2)
+# from train & validation data (a small dataleakage if using k-fold)
+MEAN, STD, MIN, MAX = (260.1077976678496, 21.99711806156345, 178.84055, 336.71628)
+QUANTILES = {
+    0.05: 225.89370874509805,
+    0.1: 232.08491384313726,
+    0.15: 235.79963690196078,
+    0.2: 238.8952394509804,
+    0.25: 242.60996250980392,
+    0.3: 245.70556505882354,
+    0.35: 249.42028811764706,
+    0.4: 252.51589066666668,
+    0.45: 256.23061372549023,
+    0.5: 259.3262162745098,
+    0.55: 263.0409393333333,
+    0.6: 267.37478290196077,
+    0.65: 271.0895059607843,
+    0.7: 274.1851085098039,
+    0.75: 279.1380725882353,
+    0.8: 283.47191615686273,
+    0.85: 287.1866392156863,
+    0.9: 290.2822417647059,
+    0.95: 293.3778443137255,
+}
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +44,7 @@ def normalize_range(data, bounds):
     return (data - bounds[0]) / (bounds[1] - bounds[0])
 
 
-def get_images(data, type_='false', mult=1.0):
+def get_images(data, type_='false', mult=1.0, precomputed=False):
     band11 = data[11]
     band14 = data[14]
     band15 = data[15]
@@ -38,14 +61,33 @@ def get_images(data, type_='false', mult=1.0):
     elif type_ == 'minmax1':
         r = g = b = (band11 - band11.min()) / (band11.max() - band11.min())
         images = np.stack([r, g, b], axis=2) * mult
-    elif type_ in ['all', 'minmaxall']:
+    elif type_ in ['all', 'minmaxall', 'quantilesall', 'meanstdall']:
         bands = []
         for band in sorted(data.keys()):
             bands.append(data[band])
         images = np.stack(bands, axis=2)
 
-        if type_ == 'minmaxall':
-            images = (images - images.min()) / (images.max() - images.min())
+        if precomputed:
+            if type_ == 'minmaxall':
+                subtract = MIN
+                divide = MAX - subtract
+            elif type_ == 'quantilesall':
+                subtract = QUANTILES[0.05]
+                divide = QUANTILES[0.95] - subtract
+            elif type_ == 'meanstdall':
+                subtract = MEAN
+                divide = STD
+        else:
+            if type_ == 'minmaxall':
+                subtract = images.min()
+                divide = images.max() - subtract
+            elif type_ == 'quantilesall':
+                subtract = np.quantile(images, 0.05)
+                divide = np.quantile(images, 0.95) - subtract
+            elif type_ == 'meanstdall':
+                subtract = images.mean()
+                divide = images.std()
+        images = (images - subtract) / divide
         
     return images
 
@@ -59,6 +101,16 @@ class ContrailsDataset:
         propagate_mask: bool = False,
         mmap: bool = False,
         transform=None,
+        conversion_type: Literal[
+            'false', 
+            'minmax3', 
+            'minmax1', 
+            'all', 
+            'minmaxall', 
+            'quantilesall', 
+            'meanstdall'
+        ] = 'meanstdall',
+        stats_precomputed: bool = True,
     ):
         self.record_dirs = record_dirs
         self.records = None
@@ -72,6 +124,8 @@ class ContrailsDataset:
         self.propagate_mask = propagate_mask
         self.mmap = mmap
         self.transform = transform
+        self.conversion_type = conversion_type
+        self.stats_precomputed = stats_precomputed
     
     def __len__(self):
         if self.propagate_mask:
@@ -102,7 +156,12 @@ class ContrailsDataset:
             )[..., time_indices]
 
         # Convert to numpy array
-        image = get_images(data, type_='all', mult=1.0)  # (H, W, C, T)
+        image = get_images(
+            data, 
+            type_=self.conversion_type, 
+            mult=1.0,
+            precomputed=self.stats_precomputed,
+        )  # (H, W, C, T)
         
         # Load masks (if available)
         human_pixel_masks = None
