@@ -583,6 +583,28 @@ def dice_with_logits_loss(input, target, smooth=1.0, pos_weight=1.0):
               (iflat.sum() + pos_weight * tflat.sum() + smooth))
 
 
+# https://arxiv.org/pdf/1707.03237.pdf
+def gdl(input, target, smooth=1.0, weight=None):
+    pos_target = (target > 0).float().flatten()
+    pos_proba = torch.sigmoid(input).flatten()
+
+    neg_target = (target == 0).float().flatten()
+    neg_proba = 1 - pos_proba
+
+    if weight is None:
+        weight = torch.tensor([1.0, 1.0], dtype=torch.float32, device=input.device)
+    loss = 1 - 2 * (
+        weight[0] * (neg_target * neg_proba).sum() + 
+        weight[1] * (pos_target * pos_proba).sum() + 
+        smooth
+    ) / (
+        weight[0] * (neg_target + neg_proba).sum() + 
+        weight[1] * (pos_target + pos_proba).sum() + 
+        smooth
+    )
+    return loss.mean()
+
+
 class SegmentationModule(BaseModule):
     def __init__(
         self, 
@@ -657,7 +679,7 @@ class SegmentationModule(BaseModule):
         else:
             self.unfreeze_only_selected()
 
-        assert loss_name in ['bce', 'focal', 'dice'], f'Unknown loss name {loss_name}.'
+        assert loss_name in ['bce', 'focal', 'dice', 'gdl'], f'Unknown loss name {loss_name}.'
         assert tta_each_n_epochs != 0, \
             'tta_each_n_epochs == 0 is not supported, use tta_each_n_epochs == -1 to disable TTA.'
         if tta_params is None:
@@ -706,6 +728,12 @@ class SegmentationModule(BaseModule):
                 preds.squeeze(1).float().flatten(),
                 batch['mask'].float().flatten(),
                 pos_weight=torch.tensor(self.hparams.pos_weight, dtype=torch.float32, device=batch['mask'].device),
+            )
+        elif self.hparams.loss_name == 'gdl':
+            loss_value = gdl(
+                preds.squeeze(1).float().flatten(),
+                batch['mask'].float().flatten(),
+                weight=torch.tensor([1.0, self.hparams.pos_weight], dtype=torch.float32, device=batch['mask'].device),
             )
         
         losses = {
