@@ -14,8 +14,6 @@ from src.utils.utils import (
 )
 
 
-TIMEOUT_S = 1200
-
 # Set up logging
 logging.basicConfig(
     level=logging.ERROR,
@@ -25,9 +23,9 @@ logging.basicConfig(
 
 Worker = collections.namedtuple("Worker", ("queue", "process"))
 WorkerInitData = collections.namedtuple(
-    "WorkerInitData", ("fold_index", "sweep_id", "sweep_run_name", "config")
+    "WorkerInitData", ("val_dir_indices", "sweep_id", "sweep_run_name", "config")
 )
-WorkerDoneData = collections.namedtuple("WorkerDoneData", ("scores", "fold_index"))
+WorkerDoneData = collections.namedtuple("WorkerDoneData", ("scores", "val_dir_indices"))
 
 
 def reset_wandb_env():
@@ -44,7 +42,7 @@ def reset_wandb_env():
 def train(sweep_q, worker_q):
     reset_wandb_env()
     worker_data = worker_q.get()
-    run_name = "{}-{}".format(worker_data.sweep_run_name, worker_data.fold_index)
+    run_name = "{}-{}".format(worker_data.sweep_run_name, worker_data.val_dir_indices)
     config = worker_data.config
     run = wandb.init(
         group=worker_data.sweep_id,
@@ -53,7 +51,7 @@ def train(sweep_q, worker_q):
         config=config,
     )
 
-    args = sys.argv[1:] + ['--data.init_args.fold_index', f'{worker_data.fold_index}']
+    args = sys.argv[1:] + ['--data.init_args.val_dir_indices', f'{worker_data.val_dir_indices}']
     scores = dict()
     try:
         with TempSetContextManager(sys, 'argv', sys.argv[:1]):
@@ -98,7 +96,7 @@ def train(sweep_q, worker_q):
     try:
         run.log(scores)
         wandb.join()
-        sweep_q.put(WorkerDoneData(scores=scores, fold_index=worker_data.fold_index))
+        sweep_q.put(WorkerDoneData(scores=scores, val_dir_indices=worker_data.val_dir_indices))
     except Exception as e:
         print(e)
     signal.alarm(0)
@@ -106,24 +104,11 @@ def train(sweep_q, worker_q):
 
 
 def main():
-    # Parse args
-    args = sys.argv[1:]
-    with TempSetContextManager(sys, 'argv', sys.argv[:1]):
-        cli = MyLightningCLI(
-            trainer_class=TrainerWandb, 
-            save_config_kwargs={
-                'config_filename': 'config_pl.yaml',
-                'overwrite': True,
-            },
-            args=[arg for arg in args if arg != 'fit'],
-            run=False,
-        )
-
     # Spin up workers before calling wandb.init()
     # Workers will be blocked on a queue waiting to start
     sweep_q = multiprocessing.Queue()
     workers = []
-    for fold_index in range(cli.config.data.init_args.k):
+    for fold_index in range(5):
         q = multiprocessing.Queue()
         p = multiprocessing.Process(
             target=train, kwargs=dict(sweep_q=sweep_q, worker_q=q)
@@ -141,25 +126,22 @@ def main():
     sweep_run_name = sweep_run.name or sweep_run.id or "unknown"
 
     # Start CV
-    for fold_index in range(cli.config.data.init_args.k):
-        worker = workers[fold_index]
+    scores = collections.defaultdict(dict)
+    for val_dir_indices, worker in zip(FOLDS, workers):
         # start worker
         worker.queue.put(
             WorkerInitData(
                 sweep_id=sweep_id,
-                fold_index=fold_index,
+                val_dir_indices=val_dir_indices,
                 sweep_run_name=sweep_run_name,
                 config=dict(sweep_run.config),
             )
         )
 
-    # Collect results
-    scores = collections.defaultdict(dict)
-    for _ in range(cli.config.data.init_args.k):
         # get metric from worker
-        result = sweep_q.get(timeout=TIMEOUT_S)
+        result = sweep_q.get()
         # wait for worker to finish
-        worker.process.join(TIMEOUT_S)
+        worker.process.join()
         if worker.process.is_alive():
             print("Worker timed out")
             worker.process.terminate()
@@ -167,11 +149,11 @@ def main():
         try:
             # collect metric to dict & log metric to sweep_run
             for name, value in result.scores.items():
-                scores[name][result.fold_index] = value
+                scores[name][result.val_dir_indices] = value
                 sweep_run.log(
                     {
                         f'best_{name}': value,
-                        "fold_index": result.fold_index,
+                        "val_dir_indices": result.val_dir_indices,
                     }
                 )
         except Exception as e:
@@ -180,10 +162,10 @@ def main():
     # Log mean of metrics
     scores_mean = {
         f'mean_best_{name}': 
-            sum(value for value in fold_index_to_score.values() if value is not None) / \
-            sum(1 for value in fold_index_to_score.values() if value is not None) 
-        for name, fold_index_to_score in scores.items()
-        if sum(1 for value in fold_index_to_score.values() if value is not None) > 0
+            sum(value for value in val_dir_indices_to_score.values() if value is not None) / \
+            sum(1 for value in val_dir_indices_to_score.values() if value is not None) 
+        for name, val_dir_indices_to_score in scores.items()
+        if sum(1 for value in val_dir_indices_to_score.values() if value is not None) > 0
     }
 
 
