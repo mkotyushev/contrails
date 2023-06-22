@@ -4,8 +4,6 @@ import numpy as np
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Literal
 
-from src.data.transforms import CopyPastePositive
-
 
 BANDS = (8, 9, 10, 11, 12, 13, 14, 15, 16)
 LABELED_TIME_INDEX = 4
@@ -110,6 +108,8 @@ class ContrailsDataset:
         shared_cache: Optional[Any] = None,
         transform=None,
         transform_mix=None,
+        transform_cpp=None,
+        is_mask_empty: Optional[List[bool]] = None,
         # Args below change the way images are loaded
         # thus change cache behavior.
         # See ContrailsDatamodule.make_cache for details.
@@ -129,8 +129,6 @@ class ContrailsDataset:
             'meanstdall'
         ] = 'falseq',
         stats_precomputed: bool = False,
-        is_mask_empty: Optional[List[bool]] = None,
-        enable_cpp_aug: bool = False,
     ):
         self.record_dirs = record_dirs
         self.records = None
@@ -145,17 +143,16 @@ class ContrailsDataset:
         self.mmap = mmap
         self.transform = transform
         self.transform_mix = transform_mix
-        self.transform_cpp = None
+        self.transform_cpp = transform_cpp
         self.conversion_type = conversion_type
         self.stats_precomputed = stats_precomputed
 
         self.is_mask_empty = is_mask_empty
         self.non_empty_mask_indices = None
-        if enable_cpp_aug:
+        if transform_cpp is not None:
             assert is_mask_empty is not None, \
-                'if enable_cpp_aug = True, is_mask_empty must be provided'
+                'if transform_cpp is not None, is_mask_empty must be provided'
             self.non_empty_mask_indices = np.where(~np.array(is_mask_empty))[0]
-            self.transform_cpp = CopyPastePositive(always_apply=True, p=1.0)
 
         self.shared_cache = shared_cache
     

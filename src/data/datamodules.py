@@ -70,6 +70,8 @@ class ContrailsDatamodule(LightningDataModule):
 
         self.train_transform = None
         self.train_transform_mix = None
+        self.train_transform_cpp = None
+
         self.val_transform = None
         self.test_transform = None
 
@@ -153,6 +155,8 @@ class ContrailsDatamodule(LightningDataModule):
                     ToTensorV2(),
                 ],
             )
+        if self.hparams.enable_cpp_aug:
+            self.train_transform_cpp = CopyPastePositive(always_apply=True, p=0.5)
         self.val_transform = self.test_transform = A.Compose(
             [
                 A.Resize(
@@ -295,9 +299,9 @@ class ContrailsDatamodule(LightningDataModule):
                 record_dirs=train_record_dirs, 
                 transform=self.train_transform,
                 transform_mix=self.train_transform_mix,
+                transform_cpp=self.train_transform_cpp,
                 shared_cache=self.cache,
                 is_mask_empty=train_is_mask_empty,
-                enable_cpp_aug=self.hparams.enable_cpp_aug,
                 **self.hparams.dataset_kwargs,
             )
 
@@ -306,9 +310,9 @@ class ContrailsDatamodule(LightningDataModule):
                 record_dirs=val_record_dirs, 
                 transform=self.val_transform,
                 transform_mix=None,
+                transform_cpp=None,
                 shared_cache=self.cache,
                 is_mask_empty=None,
-                enable_cpp_aug=False,
                 **self.hparams.dataset_kwargs,
             )
 
@@ -317,9 +321,9 @@ class ContrailsDatamodule(LightningDataModule):
                 record_dirs=test_record_dirs, 
                 transform=self.test_transform,
                 transform_mix=None,
+                transform_cpp=None,
                 shared_cache=self.cache,
                 is_mask_empty=None,
-                enable_cpp_aug=False,
                 **self.hparams.dataset_kwargs,
             )
 
