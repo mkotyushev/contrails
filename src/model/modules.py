@@ -671,7 +671,7 @@ class SegmentationModule(BaseModule):
             )
 
         if compile:
-            self.model = torch.compile(self.model, mode="reduce-overhead")
+            self.model = torch.compile(self.model)
 
         if finetuning is not None and finetuning['unfreeze_before_epoch'] == 0:
             self.unfreeze()
