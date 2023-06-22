@@ -133,7 +133,7 @@ data:
       mask_type: voting50
       propagate_mask: false
       mmap: true
-      conversion_type: falseq
+      conversion_type: ashq
       stats_precomputed: false
     cache_dir: cache
     enable_cpp_aug: false

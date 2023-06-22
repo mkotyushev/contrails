@@ -51,12 +51,12 @@ def get_images(data, type_='all', mult=1.0, precomputed=False):
     band11 = data[11]
     band14 = data[14]
     band15 = data[15]
-    if type_.startswith('false'):
+    if type_.startswith('ash'):
         r = normalize_range(band15 - band14, _TDIFF_BOUNDS)
         g = normalize_range(band14 - band11, _CLOUD_TOP_TDIFF_BOUNDS)
         b = normalize_range(band14, _T11_BOUNDS)
         images = np.clip(np.stack([r, g, b], axis=2), 0, 1) * mult
-        if type_ == 'falseq':
+        if type_ == 'ashq':
             assert mult == 255.0
             images = images.astype(np.uint8)
     elif type_ == 'minmax3':
@@ -119,15 +119,15 @@ class ContrailsDataset:
         propagate_mask: bool = False,
         mmap: bool = False,
         conversion_type: Literal[
-            'false', 
-            'falseq', 
+            'ash', 
+            'ashq', 
             'minmax3', 
             'minmax1', 
             'all', 
             'minmaxall', 
             'quantilesall', 
             'meanstdall'
-        ] = 'falseq',
+        ] = 'ashq',
         stats_precomputed: bool = False,
     ):
         self.record_dirs = record_dirs
