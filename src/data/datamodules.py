@@ -92,15 +92,16 @@ class ContrailsDatamodule(LightningDataModule):
 
         self.train_transform = A.Compose(
             [
+                A.ShiftScaleRotate(
+                    shift_limit=0.1,
+                    scale_limit=0.1,
+                    rotate_limit=45,
+                    p=0.5,
+                ),
                 A.Resize(
                     height=self.hparams.img_size,
                     width=self.hparams.img_size,
                     always_apply=True,
-                ),
-                A.Rotate(
-                    p=0.5, 
-                    limit=45, 
-                    crop_border=False,
                 ),
                 A.HorizontalFlip(p=0.5),
                 A.VerticalFlip(p=0.5),
