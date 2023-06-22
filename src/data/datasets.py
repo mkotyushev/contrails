@@ -103,11 +103,16 @@ class ContrailsDataset:
     def __init__(
         self, 
         record_dirs: List[Path], 
+        shared_cache: Optional[Any] = None,
+        transform=None,
+        # Args below change the way images are loaded
+        # thus change cache behavior.
+        # See ContrailsDatamodule.make_cache for details.
+        *,
         band_ids: Tuple[int] = BANDS,
         mask_type: Literal['voting50', 'mean', 'weighted'] = 'voting50',
         propagate_mask: bool = False,
         mmap: bool = False,
-        transform=None,
         conversion_type: Literal[
             'false', 
             'falseq', 
@@ -119,7 +124,6 @@ class ContrailsDataset:
             'meanstdall'
         ] = 'falseq',
         stats_precomputed: bool = False,
-        shared_cache: Optional[Any] = None,
     ):
         self.record_dirs = record_dirs
         self.records = None
@@ -142,21 +146,9 @@ class ContrailsDataset:
             return len(self.record_dirs) * N_TIMES
         return len(self.record_dirs)
 
-    def _get_item(self, idx):
-        if self.propagate_mask:
-            # Load all the times to use in propagation
-            record_idx = idx // N_TIMES
-            time_idx = idx % N_TIMES
-            time_indices = np.arange(N_TIMES)
-        else:
-            # Load only the labeled time
-            record_idx = idx
-            time_idx = 0  # only single time index is loaded
-            time_indices = [LABELED_TIME_INDEX]
-        record_dir = self.record_dirs[record_idx]
-
+    def _get_item(self, record_dir, time_idx, time_indices):
         # Load bands
-        # data: dict, key is band from [8..16], value 
+        # data: dict, key is band from self.band_ids, value 
         # is float numpy array of shape (H, W, T)
         data = {}
         for band_id in self.band_ids:
@@ -243,14 +235,26 @@ class ContrailsDataset:
         return output
 
     def __getitem__(self, idx):
-        # Get item from cache or load it
-        if self.shared_cache is not None and idx in self.shared_cache:
-            output = self.shared_cache[idx]
+        # Get path and indices
+        if self.propagate_mask:
+            # Load all the times to use in propagation
+            record_idx = idx // N_TIMES
+            time_idx = idx % N_TIMES
+            time_indices = np.arange(N_TIMES)
         else:
-            logger.debug(f'Cache miss, adding: {idx}')
-            output = self._get_item(idx)
-            # TODO: check if deepcopy is needed
-            self.shared_cache[idx] = deepcopy(output)
+            # Load only the labeled time
+            record_idx = idx
+            time_idx = 0  # only single time index is loaded
+            time_indices = [LABELED_TIME_INDEX]
+        record_dir = self.record_dirs[record_idx]
+        
+        # Get item from cache or load it
+        if self.shared_cache is not None and record_dir in self.shared_cache:
+            output = self.shared_cache[record_dir]
+        else:
+            logger.debug(f'Cache miss, adding: {record_dir}')
+            output = self._get_item(record_dir, time_idx, time_indices)
+            self.shared_cache[record_dir] = deepcopy(output)
 
         # Apply transform
         if self.transform is not None:

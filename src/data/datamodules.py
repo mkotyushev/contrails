@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import albumentations as A
 import multiprocessing as mp
@@ -27,12 +28,11 @@ class ContrailsDatamodule(LightningDataModule):
         self,
         data_dirs: List[Path] | Path = '/workspace/data/train',
         data_dirs_test: Optional[List[Path] | Path] = None,	
-        mmap: bool = False,
         num_folds: Optional[int] = 5,
         fold_index: Optional[int] = None,
         random_state: int = 0,
         img_size: int = 256,
-        band_ids=BANDS,
+        dataset_kwargs: Optional[dict] = None,
         mix_transform_name: Optional[str] = None,
         batch_size: int = 32,
         num_workers: int = 0,
@@ -40,6 +40,7 @@ class ContrailsDatamodule(LightningDataModule):
         prefetch_factor: int = 2,
         persistent_workers: bool = False,
         use_online_val_test: bool = False,
+        cache_dir: Optional[Path] = None,
     ):
         super().__init__()
 
@@ -47,6 +48,8 @@ class ContrailsDatamodule(LightningDataModule):
             data_dirs = [data_dirs]
         if isinstance(data_dirs_test, str):
             data_dirs_test = [data_dirs_test]
+        if dataset_kwargs is None:
+            dataset_kwargs = {}
         self.save_hyperparameters()
 
         assert (
@@ -71,6 +74,7 @@ class ContrailsDatamodule(LightningDataModule):
         self.train_volume_std = IMAGENET_DEFAULT_STD
 
         self.collate_fn = contrails_collate_fn
+        self.cache = None
 
     def build_transforms(self) -> None:        
         # If mix is used, then train_transform_mix is used
@@ -168,6 +172,39 @@ class ContrailsDatamodule(LightningDataModule):
             ],
         )
 
+    def make_cache(self, total_expected_records) -> None:
+        if self.hparams.cache_dir is None:
+            return
+        
+        self.hparams.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Name the cache with md5 hash of 
+        # /workspace/contrails/src/data/datasets.py file
+        # and ContrailsDataset parameters
+        # to avoid using cache when the dataset handling 
+        # is changed.
+        with open(Path(__file__).parent / 'datasets.py', 'rb') as f:
+            content = f.read() + str(self.hparams.dataset_kwargs).encode()
+            datasets_file_hash = hashlib.md5(content).hexdigest()
+        cache_save_path = self.hparams.cache_dir / f'{datasets_file_hash}.joblib'
+
+        # Check that only one cache file is in the cache dir
+        # and its name is the same as the one we are going to create
+        cache_files = list(self.hparams.cache_dir.iterdir())
+        assert len(cache_files) <= 1, \
+            f"More than one cache files found in {cache_save_path} " \
+            "which is not advised due to high disk space consumption. " \
+            "Please delete all cache files "
+        assert len(cache_files) == 0 or cache_files[0] == cache_save_path, \
+            f"Cache file {cache_files[0]} is not the same as the one " \
+            f"we are going to create {cache_save_path}. " \
+            "Please delete all cache files of previous runs."
+        
+        self.cache = mp.Manager().CacheDictWithSaveProxy(
+            total_expected_records=total_expected_records,
+            cache_save_path=cache_save_path,
+        )
+    
     def setup(self, stage: str = None) -> None:
         self.build_transforms()
 
@@ -194,44 +231,44 @@ class ContrailsDatamodule(LightningDataModule):
             else:
                 train_record_dirs = dirs
 
+        # List all dirs in each data_dir
+        test_record_dirs = []
+        if self.hparams.data_dirs_test is not None:
+            for data_dir in self.hparams.data_dirs_test:
+                test_record_dirs += [path for path in data_dir.iterdir() if path.is_dir()]
+
+        # Create shared cache.
+        self.make_cache(
+            total_expected_records=(
+                len(train_record_dirs) + 
+                len(val_record_dirs) + 
+                len(test_record_dirs)
+            )
+        )
+
         # Train
         if self.train_dataset is None and train_record_dirs:
-            cache = mp.Manager().dict()
             self.train_dataset = ContrailsDataset(
                 record_dirs=train_record_dirs, 
-                band_ids=self.hparams.band_ids,
-                mask_type='voting50',
-                propagate_mask=False,
-                mmap=self.hparams.mmap,
                 transform=self.train_transform,
-                shared_cache=cache,
+                shared_cache=self.cache,
+                **self.hparams.dataset_kwargs,
             )
 
         if self.val_dataset is None and val_record_dirs:
-            cache = mp.Manager().dict()
             self.val_dataset = ContrailsDataset(
                 record_dirs=val_record_dirs, 
-                band_ids=self.hparams.band_ids,
-                mask_type='voting50',
-                propagate_mask=False,
-                mmap=self.hparams.mmap,
                 transform=self.val_transform,
-                shared_cache=cache,
+                shared_cache=self.cache,
+                **self.hparams.dataset_kwargs,
             )
 
-        if self.test_dataset is None and self.hparams.data_dirs_test is not None:
-            # List all dirs in each data_dir
-            test_record_dirs = []
-            for data_dir in self.hparams.data_dirs_test:
-                test_record_dirs += [path for path in data_dir.iterdir() if path.is_dir()]
-            
-            self.val_dataset = ContrailsDataset(
+        if self.test_dataset is None and test_record_dirs:
+            self.test_dataset = ContrailsDataset(
                 record_dirs=test_record_dirs, 
-                band_ids=self.hparams.band_ids,
-                mask_type='voting50',
-                propagate_mask=False,
-                mmap=self.hparams.mmap,
                 transform=self.test_transform,
+                shared_cache=self.cache,
+                **self.hparams.dataset_kwargs,
             )
 
     def reset_transforms(self):

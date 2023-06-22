@@ -124,11 +124,18 @@ data:
       - /workspace/data/train
       - /workspace/data/validation
     data_dirs_test: null
-    mmap: true
     num_folds: 5
     fold_index: 0
     img_size: 256
     random_state: 0
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: voting50
+      propagate_mask: false
+      mmap: true
+      conversion_type: falseq
+      stats_precomputed: false
+    cache_dir: cache
     mix_transform_name: null
     batch_size: 16
     num_workers: 8

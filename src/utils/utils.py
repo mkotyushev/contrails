@@ -5,6 +5,8 @@ import scipy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import joblib
+from multiprocessing.managers import MakeProxyType, SyncManager
 from torch.utils.data import default_collate
 from weakref import proxy
 from pathlib import Path
@@ -546,3 +548,55 @@ def contrails_collate_fn(batch):
             output[k] = default_collate(v)
     
     return output
+
+
+class CacheDictWithSave(dict):
+    """Cache dict that saves itself to disk when full."""
+    def __init__(self, total_expected_records, cache_save_path: Optional[Path] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.total_expected_records = total_expected_records
+        self.cache_save_path = cache_save_path
+
+        self.cache_already_on_disk = False
+        if self.cache_save_path is not None and self.cache_save_path.exists():
+            logger.info(f'Loading cache from {self.cache_save_path}')
+            cache = joblib.load(self.cache_save_path)
+            self.update(cache)
+            assert len(self) == self.total_expected_records, \
+                f'Cache loaded from {self.cache_save_path} has {len(self)} records, ' \
+                f'but {self.total_expected_records} were expected.'
+            self.cache_already_on_disk = True
+
+    def __setitem__(self, index, value):
+        if len(self) >= self.total_expected_records + 1:
+            logger.warning(
+                f'More records than expected '
+                f'({len(self)} >= {self.total_expected_records + 1}) '
+                f'in cache. Will be added, but not saved to disk.'
+            )
+        super().__setitem__(index, value)
+        if (
+            not self.cache_already_on_disk and 
+            len(self) >= self.total_expected_records and 
+            self.cache_save_path is not None
+        ):
+            self.save()
+
+    def save(self):
+        assert not self.cache_save_path.exists(), \
+            f'Cache save path {self.cache_save_path} already exists ' \
+            f'but was not loaded from disk (cache_already_on_disk = False). ' \
+            f'This should not happen.'
+
+        logger.info(f'Saving cache to {self.cache_save_path}')
+        joblib.dump(self, self.cache_save_path)
+        self.cache_already_on_disk = True
+
+CacheDictWithSaveProxy = MakeProxyType("CacheDictWithSaveProxy", [
+    '__contains__', '__delitem__', '__getitem__', '__len__',
+    '__setitem__', 'clear', 'copy', 'default_factory', 'fromkeys',
+    'get', 'items', 'keys', 'pop', 'popitem', 'setdefault',
+    'update', 'values'])
+
+# Register proxy on the main process
+SyncManager.register("CacheDictWithSaveProxy", CacheDictWithSave, CacheDictWithSaveProxy)
