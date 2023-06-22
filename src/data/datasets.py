@@ -45,9 +45,64 @@ def normalize_range(data, bounds):
     return (data - bounds[0]) / (bounds[1] - bounds[0])
 
 
-def get_images(data, type_='all', mult=1.0, precomputed=False):
+def get_images(data, type_='all', quantize=False, precomputed=False):
+    """Converts data to numpy array of shape (H, W, C, T).
+
+    args:
+        data: dict, key is band from self.band_ids, value
+            is float numpy array of shape (H, W, T)
+        
+        type_: str, one of ['ash', 'minmax3', 'minmax1', 
+            'all', 'minmaxall', 'quantilesall', 'meanstdall']
+            
+            'ash': 
+                ash color scheme (see https://www.kaggle.com/
+                code/inversion/visualizing-contrails)
+            'minmax3': 
+                min-max normalization for each band separately
+                for bands 11, 14, 15
+            'minmax1':
+                min-max normalization for single band 11
+            'all':
+                no normalization, all provided bands are stacked
+                into single image
+            'minmaxall':
+                min-max normalization for all provided bands by 
+                either precomputed (on train + val) min and max 
+                values or by min and max values of provided record
+            'quantilesall':
+                q05-q95 normalization for all provided bands by
+                either precomputed (on train + val) quantiles or
+                values or by q05 and q95 values of provided record
+            'meanstdall':
+                mean-std normalization for all provided bands by
+                either precomputed (on train + val) mean and std
+                values or by mean and std values of provided record
+        
+        quantize: bool, if True, converts images to uint8
+            could only be used for type_ not in ['all', 
+            'quantilesall', 'meanstdall'] because the result
+            range for these types is not [0, 255]
+        
+        precomputed: bool, if True, uses precomputed values
+            for normalization (see args type_)
+    """
     if not data:
         return None
+    
+    if (
+        precomputed and 
+        type_ not in ['minmaxall', 'quantilesall', 'meanstdall']
+    ):
+        logger.warning(
+            f'precomputed is not used for type_="{type_}"'
+        )
+    
+    if type_ in ['all', 'quantilesall', 'meanstdall']:
+        assert not quantize, \
+            f'quantize=True is not supported for type_="{type_}": ' \
+            f'the result range is not [0, 255]'
+
     band11 = data[11]
     band14 = data[14]
     band15 = data[15]
@@ -55,18 +110,15 @@ def get_images(data, type_='all', mult=1.0, precomputed=False):
         r = normalize_range(band15 - band14, _TDIFF_BOUNDS)
         g = normalize_range(band14 - band11, _CLOUD_TOP_TDIFF_BOUNDS)
         b = normalize_range(band14, _T11_BOUNDS)
-        images = np.clip(np.stack([r, g, b], axis=2), 0, 1) * mult
-        if type_ == 'ashq':
-            assert mult == 255.0
-            images = images.astype(np.uint8)
+        images = np.stack([r, g, b], axis=2) * 255.0
     elif type_ == 'minmax3':
         r = (band11 - band11.min()) / (band11.max() - band11.min())
         g = (band14 - band14.min()) / (band14.max() - band14.min())
         b = (band15 - band15.min()) / (band15.max() - band15.min())
-        images = np.stack([r, g, b], axis=2) * mult
+        images = np.stack([r, g, b], axis=2) * 255.0
     elif type_ == 'minmax1':
         r = g = b = (band11 - band11.min()) / (band11.max() - band11.min())
-        images = np.stack([r, g, b], axis=2) * mult
+        images = np.stack([r, g, b], axis=2) * 255.0
     elif type_ in ['all', 'minmaxall', 'quantilesall', 'meanstdall']:
         bands = []
         for band in sorted(data.keys()):
@@ -79,7 +131,7 @@ def get_images(data, type_='all', mult=1.0, precomputed=False):
             if precomputed:
                 if type_ == 'minmaxall':
                     subtract = MIN
-                    divide = MAX - subtract
+                    divide = (MAX - subtract) / 255.0
                 elif type_ == 'quantilesall':
                     subtract = QUANTILES[0.05]
                     divide = QUANTILES[0.95] - subtract
@@ -89,7 +141,7 @@ def get_images(data, type_='all', mult=1.0, precomputed=False):
             else:
                 if type_ == 'minmaxall':
                     subtract = images.min()
-                    divide = images.max() - subtract
+                    divide = (images.max() - subtract) / 255.0
                 elif type_ == 'quantilesall':
                     subtract = np.quantile(images, 0.05)
                     divide = np.quantile(images, 0.95) - subtract
@@ -97,6 +149,10 @@ def get_images(data, type_='all', mult=1.0, precomputed=False):
                     subtract = images.mean()
                     divide = images.std()
         images = (images - subtract) / divide
+
+    if quantize:
+        images = np.clip(images, 0, 255)
+        images = images.astype(np.uint8)
         
     return images
 
@@ -120,14 +176,14 @@ class ContrailsDataset:
         mmap: bool = False,
         conversion_type: Literal[
             'ash', 
-            'ashq', 
             'minmax3', 
             'minmax1', 
             'all', 
             'minmaxall', 
             'quantilesall', 
             'meanstdall'
-        ] = 'ashq',
+        ] = 'ash',
+        quantize: bool = True,
         stats_precomputed: bool = False,
     ):
         self.record_dirs = record_dirs
@@ -145,6 +201,7 @@ class ContrailsDataset:
         self.transform_mix = transform_mix
         self.transform_cpp = transform_cpp
         self.conversion_type = conversion_type
+        self.quantize = quantize
         self.stats_precomputed = stats_precomputed
 
         self.is_mask_empty = is_mask_empty
@@ -185,7 +242,7 @@ class ContrailsDataset:
         image = get_images(
             data, 
             type_=self.conversion_type, 
-            mult=255.0,
+            quantize=self.quantize,
             precomputed=self.stats_precomputed,
         )  # (H, W, C, T)
         
