@@ -115,7 +115,7 @@ model:
     prog_bar_names: 
       - dice
     grad_checkpointing: false
-    compile: false
+    compile: true
     lr: null  # needed for sweeps
 data:
   class_path: src.data.datamodules.ContrailsDatamodule
