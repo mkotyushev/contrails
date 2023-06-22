@@ -281,18 +281,37 @@ class ContrailsDataset:
                 else:
                     # Weights are equal to IoU of individual mask 
                     # and pixel mask
-                    intersection = np.logical_and(
-                        human_pixel_masks[..., None], 
-                        human_individual_masks,
-                        axis=-1
-                    )  # (H, W, 1, N)
-                    union = np.logical_or(
-                        human_pixel_masks[..., None],
-                        human_individual_masks,
-                        axis=-1
-                    )  # (H, W, 1, N)
-                    iou = intersection.sum(axis=(0, 1)) / union.sum(axis=(0, 1))  # (1, N)
-                    mask = (iou[None, None, ...] * human_individual_masks).sum(axis=-1)  # (H, W, 1)
+                    cat_masks = np.concatenate(
+                        [
+                            np.tile(
+                                human_pixel_masks[..., None], 
+                                (1, 1, 1, human_individual_masks.shape[-1])
+                            ), 
+                            human_individual_masks,
+                        ],
+                        axis=2
+                    )
+                    intersection = np.all(cat_masks, axis=2)  # (H, W, 1, N)
+                    union = np.any(cat_masks, axis=2)  # (H, W, 1, N)
+                    union_sum = union.sum(axis=(0, 1))  # (1, N)
+                    
+                    iou = np.divide(
+                        intersection.sum(axis=(0, 1)), 
+                        union_sum,
+                        out=np.zeros_like(union_sum, dtype=np.float32),
+                        where=union_sum > 0, 
+                    )  # (1, N)
+
+                    weight = iou[None, None, ...]
+                    weight_sum = weight.sum()
+                    if not np.isclose(weight_sum, 0.0):
+                        mask = (weight * human_individual_masks).sum(axis=-1) / weight_sum  # (H, W, 1)
+
+                        # Hard 1 on voting 50 mask
+                        mask[human_pixel_masks > 0] = 1.0
+                    else:
+                        mask = human_pixel_masks
+
             mask = mask.astype(np.float32)  # (H, W, 1)
 
         # Propagate mask
