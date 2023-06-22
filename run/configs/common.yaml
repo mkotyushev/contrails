@@ -136,7 +136,7 @@ data:
       conversion_type: ashq
       stats_precomputed: false
     cache_dir: cache
-    enable_cpp_aug: false
+    empty_mask_strategy: null
     mix_transform_name: null
     batch_size: 16
     num_workers: 8

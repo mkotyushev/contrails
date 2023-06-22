@@ -5,7 +5,7 @@ import multiprocessing as mp
 import yaml
 import git
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 from lightning import LightningDataModule
 from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import DataLoader
@@ -43,7 +43,7 @@ class ContrailsDatamodule(LightningDataModule):
         persistent_workers: bool = False,
         use_online_val_test: bool = False,
         cache_dir: Optional[Path] = None,
-        enable_cpp_aug: bool = False,
+        empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
     ):
         super().__init__()
 
@@ -126,7 +126,7 @@ class ContrailsDatamodule(LightningDataModule):
         )
 
         # Train copy-paste augmentation
-        if self.hparams.enable_cpp_aug:
+        if self.hparams.empty_mask_strategy == 'cpp':
             self.train_transform_cpp = CopyPastePositive(always_apply=False, p=0.5)
 
         # Train mix augmentation
@@ -312,6 +312,13 @@ class ContrailsDatamodule(LightningDataModule):
         # Calculate for each record is mask is empty
         is_mask_empty = self.calculate_is_mask_empty(dirs)
 
+        if self.hparams.empty_mask_strategy == 'drop':
+            dirs = [
+                d for d, is_empty in zip(dirs, is_mask_empty) 
+                if not is_empty
+            ]
+            is_mask_empty = [False] * len(dirs)
+
         # Split train dirs to train and val
         # stratified by mask is empty
         kfold = StratifiedKFold(
@@ -326,6 +333,14 @@ class ContrailsDatamodule(LightningDataModule):
                 train_is_mask_empty = [is_mask_empty[i] for i in train_index]
                 val_is_mask_empty = [is_mask_empty[i] for i in val_index]
                 break
+
+        if self.hparams.empty_mask_strategy == 'drop_only_train':
+            train_record_dirs = [
+                d for d, is_empty in zip(train_record_dirs, train_is_mask_empty) 
+                if not is_empty
+            ]
+            train_is_mask_empty = [False] * len(train_record_dirs)
+
         return train_record_dirs, val_record_dirs, train_is_mask_empty, val_is_mask_empty
 
     def train_dataloader(self) -> DataLoader:
