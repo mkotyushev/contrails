@@ -67,12 +67,12 @@ class MyLightningCLISweep(LightningCLI):
             self.config['fit']['model']['init_args']['backbone_name'].startswith('convnext') or
             self.config['fit']['model']['init_args']['backbone_name'].startswith('eva02')
         ):
-            if self.config['fit']['model']['compile']:
+            if self.config['fit']['model']['init_args']['compile']:
                 logger.warning(
                     'compile is not supported with convnext or Eva02 models. '
                     'Setting `compile=False`.'
                 )
-            self.config['fit']['model']['compile'] = False
+            self.config['fit']['model']['init_args']['compile'] = False
 
         # Set LR (needed for sweeps)
         if self.config['fit']['model']['init_args']['lr'] is not None:
