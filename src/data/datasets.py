@@ -312,7 +312,12 @@ class ContrailsDataset:
                     else:
                         mask = human_pixel_masks
 
+            # Convert to uint8
+            # - if binary (voting50), 0 and 255
+            # - if not binary (mean, weighted), in range [0..255]
             mask = mask.astype(np.float32)  # (H, W, 1)
+            mask = np.clip(mask, 0, 1)
+            mask = (mask * 255).astype(np.uint8)  # (H, W, 1)
 
         # Propagate mask
         if self.propagate_mask:
@@ -407,5 +412,10 @@ class ContrailsDataset:
         # Apply single transform
         if self.transform is not None:
             output = self.transform(**output)
+
+        # Convert mask from uint8 range [0..255] 
+        # to float range [0, 1]
+        if output['mask'] is not None:
+            output['mask'] = output['mask'].astype(np.float32) / 255.0
 
         return output

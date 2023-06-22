@@ -22,9 +22,11 @@ class CopyPastePositive:
 
     def __init__(
         self, 
+        mask_positive_value: int = 255,
         always_apply=True,
         p=1.0, 
     ):
+        self.mask_positive_value = mask_positive_value
         self.always_apply = always_apply
         self.p = p
 
@@ -33,7 +35,9 @@ class CopyPastePositive:
         if not force_apply and not self.always_apply and random.random() > self.p:
             return kwargs
 
-        mask = (kwargs['mask'] > 0) & (kwargs['mask1'] <= 0)
+        mask = \
+            np.isclose(kwargs['mask'], self.mask_positive_value) & \
+            (~np.isclose(kwargs['mask1'], self.mask_positive_value))
 
         # TODO: copy mask as it, but smooth edges of mask and 
         # apply to image as weighted average of two images
@@ -70,7 +74,7 @@ class MixUp:
         r = np.random.beta(self.alpha, self.beta)
         
         kwargs['image'] = (kwargs['image'] * r + kwargs['image1'] * (1 - r)).astype(kwargs['image'].dtype)
-        kwargs['mask'] = (kwargs['mask'] * r + kwargs['mask1'] * (1 - r))
+        kwargs['mask'] = (kwargs['mask'] * r + kwargs['mask1'] * (1 - r)).astype(kwargs['mask'].dtype)
         
         return kwargs
 

@@ -127,7 +127,11 @@ class ContrailsDatamodule(LightningDataModule):
 
         # Train copy-paste augmentation
         if self.hparams.empty_mask_strategy == 'cpp':
-            self.train_transform_cpp = CopyPastePositive(always_apply=False, p=0.5)
+            self.train_transform_cpp = CopyPastePositive(
+                mask_positive_value=255,
+                always_apply=False, 
+                p=0.5,
+            )
 
         # Train mix augmentation
         if self.hparams.mix_transform_name is not None:
