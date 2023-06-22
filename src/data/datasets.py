@@ -291,7 +291,7 @@ class ContrailsDataset:
                     )  # (H, W, 1, N)
                     iou = intersection.sum(axis=(0, 1)) / union.sum(axis=(0, 1))  # (1, N)
                     mask = (iou[None, None, ...] * human_individual_masks).sum(axis=-1)  # (H, W, 1)
-            mask = mask.astype(np.uint8)  # (H, W, 1)
+            mask = mask.astype(np.float32)  # (H, W, 1)
 
         # Propagate mask
         if self.propagate_mask:
