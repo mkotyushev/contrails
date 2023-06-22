@@ -7,7 +7,7 @@ import git
 from pathlib import Path
 from typing import List, Optional
 from lightning import LightningDataModule
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import DataLoader
 from albumentations.pytorch import ToTensorV2
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
@@ -222,7 +222,39 @@ class ContrailsDatamodule(LightningDataModule):
                 'dirty': git.Repo(search_parent_directories=True).is_dirty(),
             }
             yaml.dump(cache_info, f, default_flow_style=False)
+
+    def calculate_is_mask_empty(self, record_dirs):
+        dataset = ContrailsDataset(
+            record_dirs=record_dirs, 
+            band_ids=[],
+            propagate_mask=False,
+            mmap=False,
+            transform=None,
+            shared_cache=None,
+        )
+        is_mask_empty = []
+        for item in dataset:
+            is_mask_empty.append(item['mask'].sum() == 0)
+        return is_mask_empty
     
+    def split_train_val(self, dirs):
+        # Calculate for each record is mask is empty
+        is_mask_empty = self.calculate_is_mask_empty(dirs)
+
+        # Split train dirs to train and val
+        # stratified by mask is empty
+        kfold = StratifiedKFold(
+            n_splits=self.hparams.num_folds,
+            shuffle=True,
+            random_state=self.hparams.random_state,
+        )
+        for i, (train_index, val_index) in enumerate(kfold.split(dirs, is_mask_empty)):
+            if i == self.hparams.fold_index:
+                train_record_dirs = [dirs[i] for i in train_index]
+                val_record_dirs = [dirs[i] for i in val_index]
+                break
+        return train_record_dirs, val_record_dirs
+
     def setup(self, stage: str = None) -> None:
         self.build_transforms()
 
@@ -235,17 +267,7 @@ class ContrailsDatamodule(LightningDataModule):
                 dirs += [path for path in data_dir.iterdir() if path.is_dir()]
             
             if self.hparams.fold_index is not None:
-                # Split train dirs to train and val
-                kfold = KFold(
-                    n_splits=self.hparams.num_folds,
-                    shuffle=True,
-                    random_state=self.hparams.random_state,
-                )
-                for i, (train_index, val_index) in enumerate(kfold.split(dirs)):
-                    if i == self.hparams.fold_index:
-                        train_record_dirs = [dirs[i] for i in train_index]
-                        val_record_dirs = [dirs[i] for i in val_index]
-                        break
+                train_record_dirs, val_record_dirs = self.split_train_val(dirs)
             else:
                 train_record_dirs = dirs
 
