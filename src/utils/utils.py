@@ -553,21 +553,30 @@ def contrails_collate_fn(batch):
 class CacheDictWithSave(dict):
     """Cache dict that saves itself to disk when full."""
     def __init__(self, total_expected_records, cache_save_path: Optional[Path] = None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.total_expected_records = total_expected_records
         self.cache_save_path = cache_save_path
-
         self.cache_already_on_disk = False
+        
+        super().__init__(*args, **kwargs)
+
         if self.cache_save_path is not None and self.cache_save_path.exists():
             logger.info(f'Loading cache from {self.cache_save_path}')
-            cache = joblib.load(self.cache_save_path)
-            self.update(cache)
+            self.load()
             assert len(self) == self.total_expected_records, \
                 f'Cache loaded from {self.cache_save_path} has {len(self)} records, ' \
                 f'but {self.total_expected_records} were expected.'
-            self.cache_already_on_disk = True
 
     def __setitem__(self, index, value):
+        # Hack to allow setting items in joblib.load()
+        initialized = (
+            hasattr(self, 'total_expected_records') and
+            hasattr(self, 'cache_save_path') and
+            hasattr(self, 'cache_already_on_disk')
+        )
+        if not initialized:
+            super().__setitem__(index, value)
+            return
+        
         if len(self) >= self.total_expected_records + 1:
             logger.warning(
                 f'More records than expected '
@@ -582,7 +591,15 @@ class CacheDictWithSave(dict):
         ):
             self.save()
 
+    def load(self):
+        cache = joblib.load(self.cache_save_path)
+        self.update(cache)
+        self.cache_already_on_disk = True
+
     def save(self):
+        assert not self.cache_already_on_disk, \
+            f'cache_already_on_disk = True, but save() was called. ' \
+            f'This should not happen.'
         assert not self.cache_save_path.exists(), \
             f'Cache save path {self.cache_save_path} already exists ' \
             f'but was not loaded from disk (cache_already_on_disk = False). ' \
