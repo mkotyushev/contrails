@@ -268,7 +268,7 @@ class ContrailsDataset:
         if human_pixel_masks is not None:
             if self.mask_type == 'voting50' or human_individual_masks is None:
                 if self.mask_type != 'voting50' and human_individual_masks is None:
-                    logger.warning(
+                    logger.debug(
                         f'{self.mask_type} mask type is not available '
                         'because human_individual_masks.npy is not found, '
                         'using "voting50" mask instead.'
