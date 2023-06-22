@@ -1,4 +1,4 @@
-program: run/main.py
+program: run/main_sweep.py
 command:
   - ${env}
   - /root/miniconda3/envs/contrails/bin/python
