@@ -252,12 +252,13 @@ class ContrailsDataset:
         record_dir = self.record_dirs[record_idx]
         
         # Get item from cache or load it
-        if self.shared_cache is not None and record_dir in self.shared_cache:
-            output = self.shared_cache[record_dir]
-        else:
-            logger.debug(f'Cache miss, adding: {record_dir}')
-            output = self._get_item(idx, record_dir)
-            self.shared_cache[record_dir] = deepcopy(output)
+        if self.shared_cache is not None:
+            if record_dir in self.shared_cache:
+                output = self.shared_cache[record_dir]
+            else:
+                logger.debug(f'Cache miss, adding: {record_dir}')
+                output = self._get_item(idx, record_dir)
+                self.shared_cache[record_dir] = deepcopy(output)
 
         # Apply transform
         if self.transform is not None:
