@@ -184,13 +184,16 @@ class ContrailsDatamodule(LightningDataModule):
         # to avoid using cache when the dataset handling 
         # is changed.
         with open(Path(__file__).parent / 'datasets.py', 'rb') as f:
-            content = f.read() + str(self.hparams.dataset_kwargs).encode()
-            datasets_file_hash = hashlib.md5(content).hexdigest()
+            datasets_content = f.read()
+            datasets_file_hash = hashlib.md5(
+                datasets_content + 
+                str(self.hparams.dataset_kwargs).encode()
+            ).hexdigest()
         cache_save_path = self.hparams.cache_dir / f'{datasets_file_hash}.joblib'
 
         # Check that only one cache file is in the cache dir
         # and its name is the same as the one we are going to create
-        cache_files = list(self.hparams.cache_dir.iterdir())
+        cache_files = list(self.hparams.cache_dir.glob('*.joblib'))
         assert len(cache_files) <= 1, \
             f"More than one cache files found in {cache_save_path} " \
             "which is not advised due to high disk space consumption. " \
@@ -203,6 +206,14 @@ class ContrailsDatamodule(LightningDataModule):
         self.cache = mp.Manager().CacheDictWithSaveProxy(
             total_expected_records=total_expected_records,
             cache_save_path=cache_save_path,
+        )
+
+        # Copy datasets.py to cache dir and
+        # save dataset_kwargs to a file
+        # to ease debugging
+        (self.hparams.cache_dir / 'datasets.py').write_bytes(datasets_content)
+        (self.hparams.cache_dir / 'dataset_kwargs.txt').write_text(
+            str(self.hparams.dataset_kwargs)
         )
     
     def setup(self, stage: str = None) -> None:
