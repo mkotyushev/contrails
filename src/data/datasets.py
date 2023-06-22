@@ -149,6 +149,8 @@ def get_images(data, type_='all', quantize=False, precomputed=False):
                     subtract = images.mean()
                     divide = images.std()
         images = (images - subtract) / divide
+    else:
+        raise ValueError(f'Unknown type_="{type_}"')
 
     if quantize:
         images = np.clip(images, 0, 255)
