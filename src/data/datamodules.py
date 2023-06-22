@@ -135,14 +135,14 @@ class ContrailsDatamodule(LightningDataModule):
                 self.train_transform_mix = CutMix(
                     width=int(self.hparams.img_size * 0.3), 
                     height=int(self.hparams.img_size * 0.3), 
-                    p=1.0,
+                    p=0.5,
                     always_apply=False,
                 )
             elif self.hparams.mix_transform_name == 'mixup':
                 self.train_transform_mix = MixUp(
                     alpha=3.0, 
                     beta=3.0, 
-                    p=1.0,
+                    p=0.5,
                     always_apply=False,
                 )
         
