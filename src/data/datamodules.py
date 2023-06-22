@@ -81,17 +81,8 @@ class ContrailsDatamodule(LightningDataModule):
         self.collate_fn = contrails_collate_fn
         self.cache = None
 
-    def build_transforms(self) -> None:        
-        # If mix is used, then train_transform_mix is used
-        # (additional costly sampling & augmentation from dataset)
-        # and post transform is done in train_transform_mix
-        # otherwise post transform is done in train_transform 
-        post_transform = []
-        if self.hparams.mix_transform_name is None:
-            post_transform = [
-                ToTensorV2(),
-            ]
-
+    def build_transforms(self) -> None:
+        # Train augmentations     
         self.train_transform = A.Compose(
             [
                 A.ShiftScaleRotate(
@@ -130,33 +121,32 @@ class ContrailsDatamodule(LightningDataModule):
                     std=self.train_volume_std,
                     always_apply=True,
                 ),
-                *post_transform,
+                ToTensorV2(),
             ],
         )
-        self.train_transform_mix = None
+
+        # Train copy-paste augmentation
+        if self.hparams.enable_cpp_aug:
+            self.train_transform_cpp = CopyPastePositive(always_apply=True, p=0.5)
+
+        # Train mix augmentation
         if self.hparams.mix_transform_name is not None:
             if self.hparams.mix_transform_name == 'cutmix':
-                mix_transform = CutMix(
+                self.train_transform_mix = CutMix(
                     width=int(self.hparams.img_size * 0.3), 
                     height=int(self.hparams.img_size * 0.3), 
                     p=1.0,
                     always_apply=False,
                 )
             elif self.hparams.mix_transform_name == 'mixup':
-                mix_transform = MixUp(
+                self.train_transform_mix = MixUp(
                     alpha=3.0, 
                     beta=3.0, 
                     p=1.0,
                     always_apply=False,
                 )
-            self.train_transform_mix = A.Compose(
-                [
-                    mix_transform,
-                    ToTensorV2(),
-                ],
-            )
-        if self.hparams.enable_cpp_aug:
-            self.train_transform_cpp = CopyPastePositive(always_apply=True, p=0.5)
+        
+        # Val and test transformations
         self.val_transform = self.test_transform = A.Compose(
             [
                 A.Resize(
