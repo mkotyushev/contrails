@@ -2,6 +2,8 @@ import hashlib
 import logging
 import albumentations as A
 import multiprocessing as mp
+import yaml
+import git
 from pathlib import Path
 from typing import List, Optional
 from lightning import LightningDataModule
@@ -209,12 +211,17 @@ class ContrailsDatamodule(LightningDataModule):
         )
 
         # Copy datasets.py to cache dir and
-        # save dataset_kwargs to a file
+        # save cache info to a file
         # to ease debugging
         (self.hparams.cache_dir / 'datasets.py').write_bytes(datasets_content)
-        (self.hparams.cache_dir / 'dataset_kwargs.txt').write_text(
-            str(self.hparams.dataset_kwargs)
-        )
+        
+        with open(self.hparams.cache_dir / 'cache_info.yaml', 'w') as f:
+            cache_info = {
+                'dataset_kwargs': self.hparams.dataset_kwargs, 
+                'commit_id': git.Repo(search_parent_directories=True).head.object.hexsha,
+                'dirty': git.Repo(search_parent_directories=True).is_dirty(),
+            }
+            yaml.dump(cache_info, f, default_flow_style=False)
     
     def setup(self, stage: str = None) -> None:
         self.build_transforms()
