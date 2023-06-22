@@ -69,7 +69,7 @@ class MixUp:
         
         r = np.random.beta(self.alpha, self.beta)
         
-        kwargs['image'] = (kwargs['image'] * r + kwargs['image1'] * (1 - r))
+        kwargs['image'] = (kwargs['image'] * r + kwargs['image1'] * (1 - r)).astype(kwargs['image'].dtype)
         kwargs['mask'] = (kwargs['mask'] * r + kwargs['mask1'] * (1 - r))
         
         return kwargs
