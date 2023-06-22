@@ -1,3 +1,5 @@
+trainer:
+  deterministic: false
 model:
   init_args:
     backbone_name: eva02_B_ade_seg_upernet_sz512
