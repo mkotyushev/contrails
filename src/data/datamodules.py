@@ -147,12 +147,6 @@ class ContrailsDatamodule(LightningDataModule):
                     p=1.0,
                     always_apply=False,
                 )
-            elif self.hparams.mix_transform_name == 'cpp':
-                mix_transform = CopyPastePositive(
-                    mask_index=2, 
-                    p=1.0, 
-                    always_apply=False,
-                )
             self.train_transform_mix = A.Compose(
                 [
                     mix_transform,
