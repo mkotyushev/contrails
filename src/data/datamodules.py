@@ -127,7 +127,7 @@ class ContrailsDatamodule(LightningDataModule):
 
         # Train copy-paste augmentation
         if self.hparams.enable_cpp_aug:
-            self.train_transform_cpp = CopyPastePositive(always_apply=True, p=0.5)
+            self.train_transform_cpp = CopyPastePositive(always_apply=False, p=0.5)
 
         # Train mix augmentation
         if self.hparams.mix_transform_name is not None:
