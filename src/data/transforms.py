@@ -70,8 +70,7 @@ class MixUp:
         r = np.random.beta(self.alpha, self.beta)
         
         kwargs['image'] = (kwargs['image'] * r + kwargs['image1'] * (1 - r))
-        for i in range(len(kwargs['masks'])):
-            kwargs['masks'][i] = (kwargs['masks'][i] * r + kwargs['masks1'][i] * (1 - r))
+        kwargs['mask'] = (kwargs['mask'] * r + kwargs['mask1'] * (1 - r))
         
         return kwargs
 
@@ -110,10 +109,9 @@ class CutMix:
         h_end = h_start + self.height
         w_end = w_start + self.width
 
-        # Copy image and masks region
+        # Copy image and mask region
         kwargs['image'][h_start:h_end, w_start:w_end] = kwargs['image1'][h_start:h_end, w_start:w_end]
-        for i in range(len(kwargs['masks'])):
-            kwargs['masks'][i][h_start:h_end, w_start:w_end] = kwargs['masks1'][i][h_start:h_end, w_start:w_end]
+        kwargs['mask'][h_start:h_end, w_start:w_end] = kwargs['mask1'][h_start:h_end, w_start:w_end]
         
         return kwargs
 
