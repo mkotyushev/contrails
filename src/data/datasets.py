@@ -406,16 +406,16 @@ class ContrailsDataset:
                 if not (k.endswith('1') and k[:-1] in output)
             }
 
+        # Convert mask from uint8 range [0..255] 
+        # to float range [0, 1]
+        if output['mask'] is not None:
+            output['mask'] = output['mask'].astype(np.float32) / 255.0
+
         # TODO: check which way is better:
         # - cpp and mix then single transform
         # - single transform to both components of cpp and mix
         # Apply single transform
         if self.transform is not None:
             output = self.transform(**output)
-
-        # Convert mask from uint8 range [0..255] 
-        # to float range [0, 1]
-        if output['mask'] is not None:
-            output['mask'] = output['mask'].astype(np.float32) / 255.0
 
         return output
