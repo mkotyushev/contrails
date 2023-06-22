@@ -38,6 +38,16 @@ class MyLightningCLI(LightningCLI):
         return
 
 
+class MyLightningCLISweep(LightningCLI):
+    def add_arguments_to_parser(self, parser):
+        """Add argument links to parser.
+
+        Example:
+            parser.link_arguments("data.init_args.img_size", "model.init_args.img_size")
+        """
+        return
+
+
     def before_instantiate_classes(self) -> None:
         """Implement to run some code before instantiating the classes."""
         # Force not deterministic training
@@ -51,6 +61,18 @@ class MyLightningCLI(LightningCLI):
                     'Setting `deterministic=False`.'
                 )
             self.config['fit']['trainer']['deterministic'] = False
+
+        # Force not compile
+        if (
+            self.config['fit']['model']['init_args']['backbone_name'].startswith('convnext') or
+            self.config['fit']['model']['init_args']['backbone_name'].startswith('eva02')
+        ):
+            if self.config['fit']['model']['compile']:
+                logger.warning(
+                    'compile is not supported with convnext or Eva02 models. '
+                    'Setting `compile=False`.'
+                )
+            self.config['fit']['model']['compile'] = False
 
         # Set LR (needed for sweeps)
         if self.config['fit']['model']['init_args']['lr'] is not None:

@@ -7,7 +7,7 @@ import sys
 import wandb
 
 from src.utils.utils import (
-    MyLightningCLI, 
+    MyLightningCLISweep, 
     TrainerWandb, 
     ModelCheckpointNoSave, 
     TempSetContextManager
@@ -55,7 +55,7 @@ def train(sweep_q, worker_q):
     scores = dict()
     try:
         with TempSetContextManager(sys, 'argv', sys.argv[:1]):
-            cli = MyLightningCLI(
+            cli = MyLightningCLISweep(
                 trainer_class=TrainerWandb, 
                 save_config_kwargs={
                     'config_filename': 'config_pl.yaml',
