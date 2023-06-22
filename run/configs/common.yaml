@@ -135,8 +135,8 @@ data:
       mmap: true
       conversion_type: falseq
       stats_precomputed: false
-    enable_cpp_aug: false
     cache_dir: cache
+    enable_cpp_aug: false
     mix_transform_name: null
     batch_size: 16
     num_workers: 8

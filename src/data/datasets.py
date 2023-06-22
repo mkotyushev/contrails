@@ -109,6 +109,7 @@ class ContrailsDataset:
         record_dirs: List[Path], 
         shared_cache: Optional[Any] = None,
         transform=None,
+        transform_mix=None,
         # Args below change the way images are loaded
         # thus change cache behavior.
         # See ContrailsDatamodule.make_cache for details.
@@ -143,12 +144,13 @@ class ContrailsDataset:
         self.propagate_mask = propagate_mask
         self.mmap = mmap
         self.transform = transform
+        self.transform_mix = transform_mix
+        self.transform_cpp = None
         self.conversion_type = conversion_type
         self.stats_precomputed = stats_precomputed
 
         self.is_mask_empty = is_mask_empty
         self.non_empty_mask_indices = None
-        self.transform_cpp = None
         if enable_cpp_aug:
             assert is_mask_empty is not None, \
                 'if enable_cpp_aug = True, is_mask_empty must be provided'
@@ -279,7 +281,7 @@ class ContrailsDataset:
                 self.shared_cache[record_dir] = deepcopy(output)
         
         return output
-
+    
     def __getitem__(self, idx):
         output = self._get_item_cached(idx)
 
@@ -304,7 +306,30 @@ class ContrailsDataset:
                 if not (k.endswith('1') and k[:-1] in output)
             }         
 
-        # Apply transform
+        # Apply mix transform
+        if self.transform_mix is not None:
+            # Sample random record
+            random_idx = np.random.choice(len(self))
+            random_output = self._get_item_cached(random_idx)
+
+            # Apply augmentation
+            output = self.transform_mix(
+                **{
+                    **output,  
+                    **{f'{k}1': v for k, v in random_output.items()}
+                  }
+            )
+
+            # Remove unnecessary keys
+            output = {
+                k: v for k, v in output.items() 
+                if not (k.endswith('1') and k[:-1] in output)
+            }
+
+        # TODO: check which way is better:
+        # - cpp and mix then single transform
+        # - single transform to both components of cpp and mix
+        # Apply single transform
         if self.transform is not None:
             output = self.transform(**output)
 

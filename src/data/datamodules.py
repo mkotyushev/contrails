@@ -294,6 +294,7 @@ class ContrailsDatamodule(LightningDataModule):
             self.train_dataset = ContrailsDataset(
                 record_dirs=train_record_dirs, 
                 transform=self.train_transform,
+                transform_mix=self.train_transform_mix,
                 shared_cache=self.cache,
                 is_mask_empty=train_is_mask_empty,
                 enable_cpp_aug=self.hparams.enable_cpp_aug,
@@ -304,6 +305,7 @@ class ContrailsDatamodule(LightningDataModule):
             self.val_dataset = ContrailsDataset(
                 record_dirs=val_record_dirs, 
                 transform=self.val_transform,
+                transform_mix=None,
                 shared_cache=self.cache,
                 is_mask_empty=None,
                 enable_cpp_aug=False,
@@ -314,6 +316,7 @@ class ContrailsDatamodule(LightningDataModule):
             self.test_dataset = ContrailsDataset(
                 record_dirs=test_record_dirs, 
                 transform=self.test_transform,
+                transform_mix=None,
                 shared_cache=self.cache,
                 is_mask_empty=None,
                 enable_cpp_aug=False,
