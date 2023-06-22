@@ -4,6 +4,8 @@ import numpy as np
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Literal
 
+from src.data.transforms import CopyPastePositive
+
 
 BANDS = (8, 9, 10, 11, 12, 13, 14, 15, 16)
 LABELED_TIME_INDEX = 4
@@ -126,6 +128,8 @@ class ContrailsDataset:
             'meanstdall'
         ] = 'falseq',
         stats_precomputed: bool = False,
+        is_mask_empty: Optional[List[bool]] = None,
+        enable_cpp_aug: bool = False,
     ):
         self.record_dirs = record_dirs
         self.records = None
@@ -141,6 +145,16 @@ class ContrailsDataset:
         self.transform = transform
         self.conversion_type = conversion_type
         self.stats_precomputed = stats_precomputed
+
+        self.is_mask_empty = is_mask_empty
+        self.non_empty_mask_indices = None
+        self.transform_cpp = None
+        if enable_cpp_aug:
+            assert is_mask_empty is not None, \
+                'if enable_cpp_aug = True, is_mask_empty must be provided'
+            self.non_empty_mask_indices = np.where(~np.array(is_mask_empty))[0]
+            self.transform_cpp = CopyPastePositive(always_apply=True, p=1.0)
+
         self.shared_cache = shared_cache
     
     def __len__(self):
@@ -246,8 +260,8 @@ class ContrailsDataset:
         }
         
         return output
-
-    def __getitem__(self, idx):
+    
+    def _get_item_cached(self, idx):
         # Get path and indices
         if self.propagate_mask:
             record_idx = idx // N_TIMES
@@ -263,6 +277,32 @@ class ContrailsDataset:
             output = self._get_item(idx, record_dir)
             if self.shared_cache is not None:
                 self.shared_cache[record_dir] = deepcopy(output)
+        
+        return output
+
+    def __getitem__(self, idx):
+        output = self._get_item_cached(idx)
+
+        # If mask is empty and augmentation is enabled,
+        # apply copy-paste-positive augmentation
+        if self.transform_cpp is not None and self.is_mask_empty[idx]:
+            # Sample random record with non-empty mask
+            random_idx = np.random.choice(self.non_empty_mask_indices)
+            random_output = self._get_item_cached(random_idx)
+
+            # Apply augmentation
+            output = self.transform_cpp(
+                **{
+                    **output,  
+                    **{f'{k}1': v for k, v in random_output.items()}
+                  }
+            )
+
+            # Remove unnecessary keys
+            output = {
+                k: v for k, v in output.items() 
+                if not (k.endswith('1') and k[:-1] in output)
+            }         
 
         # Apply transform
         if self.transform is not None:

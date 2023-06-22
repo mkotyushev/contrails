@@ -22,11 +22,9 @@ class CopyPastePositive:
 
     def __init__(
         self, 
-        mask_index: int = 2,
         always_apply=True,
         p=1.0, 
     ):
-        self.mask_index = mask_index
         self.always_apply = always_apply
         self.p = p
 
@@ -35,11 +33,12 @@ class CopyPastePositive:
         if not force_apply and not self.always_apply and random.random() > self.p:
             return kwargs
 
-        mask = (kwargs['masks'][self.mask_index] > 0) & (kwargs['masks1'][self.mask_index] <= 0)
+        mask = (kwargs['mask'] > 0) & (kwargs['mask1'] <= 0)
 
+        # TODO: copy mask as it, but smooth edges of mask and 
+        # apply to image as weighted average of two images
         kwargs['image'][mask] = kwargs['image1'][mask]
-        for i in range(len(kwargs['masks'])):
-            kwargs['masks'][i][mask] = kwargs['masks1'][i][mask]
+        kwargs['mask'][mask] = kwargs['mask1'][mask]
 
         return kwargs
 

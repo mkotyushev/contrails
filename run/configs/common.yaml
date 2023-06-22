@@ -135,6 +135,7 @@ data:
       mmap: true
       conversion_type: falseq
       stats_precomputed: false
+    enable_cpp_aug: false
     cache_dir: cache
     mix_transform_name: null
     batch_size: 16

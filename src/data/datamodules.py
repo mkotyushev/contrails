@@ -43,6 +43,7 @@ class ContrailsDatamodule(LightningDataModule):
         persistent_workers: bool = False,
         use_online_val_test: bool = False,
         cache_dir: Optional[Path] = None,
+        enable_cpp_aug: bool = False,
     ):
         super().__init__()
 
@@ -60,8 +61,8 @@ class ContrailsDatamodule(LightningDataModule):
         ), 'num_folds and fold_index must be both None or both not None'
 
         assert mix_transform_name is None or \
-            mix_transform_name in ['cutmix', 'mixup', 'cpp'], \
-            'mix_transform_name must be one of [cutmix, mixup, cpp]'
+            mix_transform_name in ['cutmix', 'mixup'], \
+            'mix_transform_name must be one of [cutmix, mixup]'
 
         self.train_dataset = None
         self.val_dataset = None
@@ -252,8 +253,10 @@ class ContrailsDatamodule(LightningDataModule):
             if i == self.hparams.fold_index:
                 train_record_dirs = [dirs[i] for i in train_index]
                 val_record_dirs = [dirs[i] for i in val_index]
+                train_is_mask_empty = [is_mask_empty[i] for i in train_index]
+                val_is_mask_empty = [is_mask_empty[i] for i in val_index]
                 break
-        return train_record_dirs, val_record_dirs
+        return train_record_dirs, val_record_dirs, train_is_mask_empty, val_is_mask_empty
 
     def setup(self, stage: str = None) -> None:
         self.build_transforms()
@@ -267,7 +270,12 @@ class ContrailsDatamodule(LightningDataModule):
                 dirs += [path for path in data_dir.iterdir() if path.is_dir()]
             
             if self.hparams.fold_index is not None:
-                train_record_dirs, val_record_dirs = self.split_train_val(dirs)
+                (
+                    train_record_dirs, \
+                    val_record_dirs, 
+                    train_is_mask_empty, 
+                    _,
+                ) = self.split_train_val(dirs)
             else:
                 train_record_dirs = dirs
 
@@ -292,6 +300,8 @@ class ContrailsDatamodule(LightningDataModule):
                 record_dirs=train_record_dirs, 
                 transform=self.train_transform,
                 shared_cache=self.cache,
+                is_mask_empty=train_is_mask_empty,
+                enable_cpp_aug=self.hparams.enable_cpp_aug,
                 **self.hparams.dataset_kwargs,
             )
 
@@ -300,6 +310,8 @@ class ContrailsDatamodule(LightningDataModule):
                 record_dirs=val_record_dirs, 
                 transform=self.val_transform,
                 shared_cache=self.cache,
+                is_mask_empty=None,
+                enable_cpp_aug=False,
                 **self.hparams.dataset_kwargs,
             )
 
@@ -308,6 +320,8 @@ class ContrailsDatamodule(LightningDataModule):
                 record_dirs=test_record_dirs, 
                 transform=self.test_transform,
                 shared_cache=self.cache,
+                is_mask_empty=None,
+                enable_cpp_aug=False,
                 **self.hparams.dataset_kwargs,
             )
 
