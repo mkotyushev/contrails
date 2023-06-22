@@ -1,5 +1,6 @@
 {
     "files.exclude": {
         "**/*.npy": true
-    }
+    },
+    "workbench.colorTheme": "Default Dark+"
 }
