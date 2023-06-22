@@ -12,8 +12,6 @@ parameters:
   model.init_args.backbone_name:
     distribution: categorical
     values: 
-    - convnextv2_base.fcmae_ft_in22k_in1k_384
-    - eva02_B_ade_seg_upernet_sz512
     - maxvit_rmlp_base_rw_384.sw_in12k_ft_in1k
     - nvidia/mit-b5
   model.init_args.compile:
