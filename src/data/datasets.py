@@ -146,7 +146,16 @@ class ContrailsDataset:
             return len(self.record_dirs) * N_TIMES
         return len(self.record_dirs)
 
-    def _get_item(self, record_dir, time_idx, time_indices):
+    def _get_item(self, idx, record_dir):
+        # Get path and indices
+        if self.propagate_mask:
+            # Load all the times to use in propagation
+            time_idx = idx % N_TIMES
+            time_indices = np.arange(N_TIMES)
+        else:
+            # Load only the labeled time
+            time_idx = 0  # only single time index is loaded
+            time_indices = [LABELED_TIME_INDEX]
         # Load bands
         # data: dict, key is band from self.band_ids, value 
         # is float numpy array of shape (H, W, T)
@@ -237,15 +246,9 @@ class ContrailsDataset:
     def __getitem__(self, idx):
         # Get path and indices
         if self.propagate_mask:
-            # Load all the times to use in propagation
             record_idx = idx // N_TIMES
-            time_idx = idx % N_TIMES
-            time_indices = np.arange(N_TIMES)
         else:
-            # Load only the labeled time
             record_idx = idx
-            time_idx = 0  # only single time index is loaded
-            time_indices = [LABELED_TIME_INDEX]
         record_dir = self.record_dirs[record_idx]
         
         # Get item from cache or load it
@@ -253,7 +256,7 @@ class ContrailsDataset:
             output = self.shared_cache[record_dir]
         else:
             logger.debug(f'Cache miss, adding: {record_dir}')
-            output = self._get_item(record_dir, time_idx, time_indices)
+            output = self._get_item(idx, record_dir)
             self.shared_cache[record_dir] = deepcopy(output)
 
         # Apply transform
