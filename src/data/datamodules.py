@@ -164,6 +164,87 @@ class ContrailsDatamodule(LightningDataModule):
             ],
         )
 
+    def setup(self, stage: str = None) -> None:
+        self.build_transforms()
+
+        # K-fold split or full train
+        train_record_dirs, val_record_dirs = [], []
+        if self.hparams.data_dirs is not None:
+            # List all dirs in each data_dir
+            dirs = []
+            for data_dir in self.hparams.data_dirs:
+                dirs += [path for path in data_dir.iterdir() if path.is_dir()]
+            
+            if self.hparams.fold_index is not None:
+                (
+                    train_record_dirs, \
+                    val_record_dirs, 
+                    train_is_mask_empty, 
+                    _,
+                ) = self.split_train_val(dirs)
+            else:
+                train_record_dirs = dirs
+
+        # List all dirs in each data_dir
+        test_record_dirs = []
+        if self.hparams.data_dirs_test is not None:
+            for data_dir in self.hparams.data_dirs_test:
+                test_record_dirs += [path for path in data_dir.iterdir() if path.is_dir()]
+
+        # Create shared cache.
+        self.make_cache(
+            total_expected_records=(
+                len(train_record_dirs) + 
+                len(val_record_dirs) + 
+                len(test_record_dirs)
+            )
+        )
+
+        # Train
+        if self.train_dataset is None and train_record_dirs:
+            self.train_dataset = ContrailsDataset(
+                record_dirs=train_record_dirs, 
+                transform=self.train_transform,
+                transform_mix=self.train_transform_mix,
+                transform_cpp=self.train_transform_cpp,
+                shared_cache=self.cache,
+                is_mask_empty=train_is_mask_empty,
+                **self.hparams.dataset_kwargs,
+            )
+
+        if self.val_dataset is None and val_record_dirs:
+            self.val_dataset = ContrailsDataset(
+                record_dirs=val_record_dirs, 
+                transform=self.val_transform,
+                transform_mix=None,
+                transform_cpp=None,
+                shared_cache=self.cache,
+                is_mask_empty=None,
+                **self.hparams.dataset_kwargs,
+            )
+
+        if self.test_dataset is None and test_record_dirs:
+            self.test_dataset = ContrailsDataset(
+                record_dirs=test_record_dirs, 
+                transform=self.test_transform,
+                transform_mix=None,
+                transform_cpp=None,
+                shared_cache=self.cache,
+                is_mask_empty=None,
+                **self.hparams.dataset_kwargs,
+            )
+
+    def reset_transforms(self):
+        self.build_transforms()
+
+        if self.train_dataset is not None:
+            self.train_dataset.transform = self.train_transform
+            self.train_dataset.transform_mix = self.train_transform_mix
+        if self.val_dataset is not None:
+            self.val_dataset.transform = self.val_transform
+        if self.test_dataset is not None:
+            self.test_dataset.transform = self.test_transform
+
     def make_cache(self, total_expected_records) -> None:
         if self.hparams.cache_dir is None:
             return
@@ -246,87 +327,6 @@ class ContrailsDatamodule(LightningDataModule):
                 val_is_mask_empty = [is_mask_empty[i] for i in val_index]
                 break
         return train_record_dirs, val_record_dirs, train_is_mask_empty, val_is_mask_empty
-
-    def setup(self, stage: str = None) -> None:
-        self.build_transforms()
-
-        # K-fold split or full train
-        train_record_dirs, val_record_dirs = [], []
-        if self.hparams.data_dirs is not None:
-            # List all dirs in each data_dir
-            dirs = []
-            for data_dir in self.hparams.data_dirs:
-                dirs += [path for path in data_dir.iterdir() if path.is_dir()]
-            
-            if self.hparams.fold_index is not None:
-                (
-                    train_record_dirs, \
-                    val_record_dirs, 
-                    train_is_mask_empty, 
-                    _,
-                ) = self.split_train_val(dirs)
-            else:
-                train_record_dirs = dirs
-
-        # List all dirs in each data_dir
-        test_record_dirs = []
-        if self.hparams.data_dirs_test is not None:
-            for data_dir in self.hparams.data_dirs_test:
-                test_record_dirs += [path for path in data_dir.iterdir() if path.is_dir()]
-
-        # Create shared cache.
-        self.make_cache(
-            total_expected_records=(
-                len(train_record_dirs) + 
-                len(val_record_dirs) + 
-                len(test_record_dirs)
-            )
-        )
-
-        # Train
-        if self.train_dataset is None and train_record_dirs:
-            self.train_dataset = ContrailsDataset(
-                record_dirs=train_record_dirs, 
-                transform=self.train_transform,
-                transform_mix=self.train_transform_mix,
-                transform_cpp=self.train_transform_cpp,
-                shared_cache=self.cache,
-                is_mask_empty=train_is_mask_empty,
-                **self.hparams.dataset_kwargs,
-            )
-
-        if self.val_dataset is None and val_record_dirs:
-            self.val_dataset = ContrailsDataset(
-                record_dirs=val_record_dirs, 
-                transform=self.val_transform,
-                transform_mix=None,
-                transform_cpp=None,
-                shared_cache=self.cache,
-                is_mask_empty=None,
-                **self.hparams.dataset_kwargs,
-            )
-
-        if self.test_dataset is None and test_record_dirs:
-            self.test_dataset = ContrailsDataset(
-                record_dirs=test_record_dirs, 
-                transform=self.test_transform,
-                transform_mix=None,
-                transform_cpp=None,
-                shared_cache=self.cache,
-                is_mask_empty=None,
-                **self.hparams.dataset_kwargs,
-            )
-
-    def reset_transforms(self):
-        self.build_transforms()
-
-        if self.train_dataset is not None:
-            self.train_dataset.transform = self.train_transform
-            self.train_dataset.transform_mix = self.train_transform_mix
-        if self.val_dataset is not None:
-            self.val_dataset.transform = self.val_transform
-        if self.test_dataset is not None:
-            self.test_dataset.transform = self.test_transform
 
     def train_dataloader(self) -> DataLoader:
         sampler, shuffle = None, True      
