@@ -934,7 +934,10 @@ class SegmentationModule(BaseModule):
         y_pred = torch.sigmoid(preds.detach().float()).squeeze(1)
         
         if 'mask' in batch:
-            y = batch['mask'].detach()
+            y = torch.isclose(
+                batch['mask'].detach(), 
+                torch.tensor(1.0, device=y_pred.device)
+            ).long()
             y, y_pred = self.remove_nans(y, y_pred)
         
         return y, y_pred
