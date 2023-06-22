@@ -46,6 +46,8 @@ def normalize_range(data, bounds):
 
 
 def get_images(data, type_='all', mult=1.0, precomputed=False):
+    if not data:
+        return None
     band11 = data[11]
     band14 = data[14]
     band15 = data[15]
@@ -227,12 +229,14 @@ class ContrailsDataset:
                 'Mask propagation is not implemented yet.'
             )
         else:
-            assert mask.shape[-1] == 1
-            assert image.shape[-1] == 1
+            assert mask is None or mask.shape[-1] == 1
+            assert image is None or image.shape[-1] == 1
 
         # Select time index
-        image = image[..., time_idx]  # (H, W, C, T) -> (H, W, C)
-        mask = mask[..., time_idx]  # (H, W, T) -> (H, W)
+        if image is not None:
+            image = image[..., time_idx]  # (H, W, C, T) -> (H, W, C)
+        if mask is not None:
+            mask = mask[..., time_idx]  # (H, W, T) -> (H, W)
         
         # Prepare output
         output = {
