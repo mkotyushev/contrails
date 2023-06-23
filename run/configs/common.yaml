@@ -82,7 +82,7 @@ model:
     #   rotate90_indices: [1, 2, 3]
     pretrained: true
     mechanize: false
-    loss_name: bce
+    loss_name: bce=1.0
     pos_weight: 1.0
     label_smoothing: 0.0
     optimizer_init: 
