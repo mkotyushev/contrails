@@ -1,6 +1,10 @@
 trainer:
   deterministic: true
+  accumulate_grad_batches: 1
 model:
   init_args:
     backbone_name: convnextv2_base.fcmae_ft_in22k_in1k_384
     compile: false  # TODO: enable compiling for convnext
+data:
+  init_args:
+    batch_size: 64

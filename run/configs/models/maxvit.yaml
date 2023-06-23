@@ -1,6 +1,10 @@
 trainer:
   deterministic: true
+  accumulate_grad_batches: 2
 model:
   init_args:
     backbone_name: maxvit_rmlp_base_rw_384.sw_in12k_ft_in1k
     compile: true
+data:
+  init_args:
+    batch_size: 32
