@@ -581,27 +581,23 @@ def dice_with_logits_loss(input, target, smooth=1.0, pos_weight=1.0):
     return 1 - ((2. * intersection * pos_weight + smooth) /
               (iflat.sum() + pos_weight * tflat.sum() + smooth))
 
-
-# https://arxiv.org/pdf/1707.03237.pdf
-def gdl(input, target, smooth=1.0, weight=None):
-    pos_target = (target > 0).float().flatten()
-    pos_proba = torch.sigmoid(input).flatten()
-
-    neg_target = (target == 0).float().flatten()
-    neg_proba = 1 - pos_proba
-
-    if weight is None:
-        weight = torch.tensor([1.0, 1.0], dtype=torch.float32, device=input.device)
-    loss = 1 - 2 * (
-        weight[0] * (neg_target * neg_proba).sum() + 
-        weight[1] * (pos_target * pos_proba).sum() + 
-        smooth
-    ) / (
-        weight[0] * (neg_target + neg_proba).sum() + 
-        weight[1] * (pos_target + pos_proba).sum() + 
-        smooth
-    )
-    return loss.mean()
+# https://github.com/Mehrdad-Noori/Brain-Tumor-Segmentation/blob/
+# ebfd12d666dfd6a1743bc4935c6f68a8e26370e3/loss.py
+def generalized_dice_loss(y_true, y_pred):
+    """
+    Generalized Dice Score
+    https://arxiv.org/pdf/1707.03237
+    
+    """
+    eps = 1e-7
+    y_true    = y_true.flatten(1)
+    y_pred    = y_pred.flatten(1)
+    sum_p     = y_pred.sum(-1)
+    sum_r     = y_true.sum(-1)
+    sum_pr    = (y_true * y_pred).sum(-1)
+    weights   = 1 / (sum_r ** 2 + eps)
+    generalized_dice = (2 * (weights * sum_pr).sum()) / ((weights * (sum_r + sum_p)).sum())
+    return 1 - generalized_dice
 
 
 def parse_loss_name(loss_name):
@@ -637,7 +633,7 @@ class SegmentationModule(BaseModule):
         tta_params: Dict[str, Any] = None,
         pretrained: bool = True,
         label_smoothing: float = 0.0,
-        pos_weight: float = 1.0,
+        pos_weight: Optional[float] = None,
         optimizer_init: Optional[Dict[str, Any]] = None,
         lr_scheduler_init: Optional[Dict[str, Any]] = None,
         pl_lrs_cfg: Optional[Dict[str, Any]] = None,
@@ -721,36 +717,36 @@ class SegmentationModule(BaseModule):
         losses = {}
         for loss_name, loss_weight in parse_loss_name(self.hparams.loss_name).items():
             if loss_name == 'bce':
-                # 3d_acs_weights outputs probabilities, not logits
-                weight = torch.where(
-                    batch['mask'] == 1,
-                    torch.tensor(self.hparams.pos_weight, dtype=torch.float32, device=batch['mask'].device),
-                    torch.tensor(1.0, dtype=torch.float32, device=batch['mask'].device),
-                ).flatten()
+                pos_weight = None
+                if self.hparams.pos_weight is not None:
+                    pos_weight = torch.tensor(self.hparams.pos_weight)
                 loss_value = F.binary_cross_entropy_with_logits(
                     preds.squeeze(1).float().flatten(),
                     batch['mask'].float().flatten(),
                     reduction='mean',
-                    weight=weight,
+                    pos_weight=pos_weight,
                 )
             elif loss_name == 'focal':
+                alpha = -1
+                if self.hparams.pos_weight is not None:
+                    # alpha is in [0, 1] and pos_weight is absolute 
+                    # assuming negative weight is 1.0
+                    # so it need to be converted
+                    # e. g. 99 -> 0.99, 0.1 -> ~0.09, 0.01 -> ~0.01
+                    alpha = self.hparams.pos_weight / (1.0 + self.hparams.pos_weight)
                 loss_value = sigmoid_focal_loss(
                     preds.squeeze(1).float().flatten(),
                     batch['mask'].float().flatten(),
                     reduction='mean',
-                    # alpha is in [0, 1] with negative weight assigned to 1 - alpha 
-                    # and pos_weight is absolute assuming negative weight is 1.0
-                    # so it need to be converted
-                    alpha=self.hparams.pos_weight / (1.0 + self.hparams.pos_weight),
+                    alpha=alpha,
                 )
             elif loss_name == 'dice':
                 loss_fn = DiceLoss(mode="binary", smooth=1.0)
                 loss_value = loss_fn(preds, batch['mask'])
             elif loss_name == 'gdl':
-                loss_value = gdl(
+                loss_value = generalized_dice_loss(
                     preds.squeeze(1).float().flatten(),
                     batch['mask'].float().flatten(),
-                    weight=torch.tensor([1.0, self.hparams.pos_weight], dtype=torch.float32, device=batch['mask'].device),
                 )
             
             losses[loss_name] = loss_value * loss_weight

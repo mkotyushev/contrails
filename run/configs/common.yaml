@@ -83,7 +83,7 @@ model:
     pretrained: true
     mechanize: false
     loss_name: bce=1.0
-    pos_weight: 1.0
+    pos_weight: null
     label_smoothing: 0.0
     optimizer_init: 
       class_path: torch.optim.AdamW
