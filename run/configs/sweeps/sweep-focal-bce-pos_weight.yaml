@@ -1,0 +1,29 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - ${args}
+method: grid
+parameters:
+  config:
+    distribution: constant
+    values: 
+    - run/configs/models/segformer.yaml
+  model.init_args.loss_name:
+    distribution: categorical
+    values:
+    - bce=1.0
+    - focal=1.0
+  model.init_args.pos_weight:
+    distribution: categorical
+    values:
+    - 99  # 0.99 in terms of focal loss
+    - 2  # ~0.66 in terms of focal loss
+    - 1  # 0.5 in terms of focal loss
+    - 0.5  # ~0.33 in terms of focal loss
+    - 0.1  # ~0.1 in terms of focal loss
+    - 0.01  # ~0.01 in terms of focal loss
