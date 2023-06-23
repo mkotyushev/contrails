@@ -19,13 +19,6 @@ def cli_main():
         }
     )
 
-    # Best scores
-    scores = {}
-    for cb in cli.trainer.checkpoint_callbacks:
-        if cb.best_model_score is not None:
-            scores[f'best_{cb.monitor}'] = cb.best_model_score.item()
-    cli.model.log_dict(scores)
-
 
 if __name__ == "__main__":
     cli_main()

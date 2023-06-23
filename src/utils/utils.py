@@ -134,6 +134,15 @@ class ModelCheckpointNoSave(ModelCheckpoint):
         if trainer.is_global_zero:
             for logger in trainer.loggers:
                 logger.after_save_checkpoint(proxy(self))
+    
+    def on_fit_end(self, trainer, pl_module) -> None:
+        """Called when fit ends."""
+        pl_module.logger.experiment.log(
+            {
+                'best_epoch': self.best_epoch(), 
+                f'best_{self.monitor}': self.best_model_score,
+            }
+        )
 
 
 class TempSetContextManager:
