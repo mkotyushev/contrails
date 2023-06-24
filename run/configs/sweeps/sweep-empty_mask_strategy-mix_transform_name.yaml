@@ -27,11 +27,11 @@ parameters:
   data.init_args.empty_mask_strategy:
     distribution: categorical
     values:
-    - null
+    - "null"
     - drop_only_train
   data.init_args.mix_transform_name:
     distribution: categorical
     values:
-    - null
+    - "null"
     - mixup
     - cutmix
