@@ -197,11 +197,7 @@ class ContrailsDatamodule(LightningDataModule):
 
         # Create shared cache.
         self.make_cache(
-            total_expected_records=(
-                len(train_record_dirs) + 
-                len(val_record_dirs) + 
-                len(test_record_dirs)
-            )
+            record_dirs=train_record_dirs + val_record_dirs + test_record_dirs
         )
 
         # Train
@@ -249,7 +245,7 @@ class ContrailsDatamodule(LightningDataModule):
         if self.test_dataset is not None:
             self.test_dataset.transform = self.test_transform
 
-    def make_cache(self, total_expected_records) -> None:
+    def make_cache(self, record_dirs) -> None:
         if self.hparams.cache_dir is None:
             return
         
@@ -281,7 +277,7 @@ class ContrailsDatamodule(LightningDataModule):
             "Please delete all cache files of previous runs."
         
         self.cache = mp.Manager().CacheDictWithSaveProxy(
-            total_expected_records=total_expected_records,
+            record_dirs=record_dirs,
             cache_save_path=cache_save_path,
         )
 

@@ -583,8 +583,8 @@ def contrails_collate_fn(batch):
 
 class CacheDictWithSave(dict):
     """Cache dict that saves itself to disk when full."""
-    def __init__(self, total_expected_records, cache_save_path: Optional[Path] = None, *args, **kwargs):
-        self.total_expected_records = total_expected_records
+    def __init__(self, record_dirs, cache_save_path: Optional[Path] = None, *args, **kwargs):
+        self.total_expected_records = len(record_dirs)
         self.cache_save_path = cache_save_path
         self.cache_already_on_disk = False
         
@@ -593,9 +593,10 @@ class CacheDictWithSave(dict):
         if self.cache_save_path is not None and self.cache_save_path.exists():
             logger.info(f'Loading cache from {self.cache_save_path}')
             self.load()
-            assert len(self) == self.total_expected_records, \
+            assert len(self) >= self.total_expected_records, \
                 f'Cache loaded from {self.cache_save_path} has {len(self)} records, ' \
                 f'but {self.total_expected_records} were expected.'
+            assert all(d in self for d in record_dirs)
 
     def __setitem__(self, index, value):
         # Hack to allow setting items in joblib.load()
