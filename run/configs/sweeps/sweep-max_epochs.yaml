@@ -1,0 +1,38 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - ${args}
+method: grid
+parameters:
+  trainer.max_epochs:
+    distribution: categorical
+    values: 
+    - 32
+    - 64
+    - 128
+  model.init_args.backbone_name:
+    distribution: constant
+    value: nvidia/mit-b5
+  data.init_args.batch_size:
+    distribution: constant
+    value: 32
+  trainer.accumulate_grad_batches:
+    distribution: constant
+    value: 2
+  model.init_args.loss_name:
+    distribution: constant
+    value: focal=1.0
+  model.init_args.pos_weight:
+    distribution: constant
+    value: 2  # ~0.66 in terms of focal loss
+  data.init_args.empty_mask_strategy:
+    distribution: constant
+    value: "null"
+  data.init_args.mix_transform_name:
+    distribution: constant
+    value: "null"
