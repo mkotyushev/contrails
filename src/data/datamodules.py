@@ -53,6 +53,9 @@ class ContrailsDatamodule(LightningDataModule):
             data_dirs_test = [data_dirs_test]
         if dataset_kwargs is None:
             dataset_kwargs = {}
+        logger.info(f"dataset_kwargs types: {[type(v) for v in dataset_kwargs.values()]}")
+        logger.info(f"dataset_kwargs: {dataset_kwargs}")
+        
         self.save_hyperparameters()
 
         assert (
