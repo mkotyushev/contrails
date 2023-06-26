@@ -246,23 +246,30 @@ class ContrailsDatamodule(LightningDataModule):
             self.test_dataset.transform = self.test_transform
 
     def make_cache(self, record_dirs) -> None:
-        if self.hparams.cache_dir is None:
+        cache_save_path = None
+        if self.hparams.cache_dir is not None:
+            # Name the cache with md5 hash of 
+            # /workspace/contrails/src/data/datasets.py file
+            # and ContrailsDataset parameters
+            # to avoid using cache when the dataset handling 
+            # is changed.
+            with open(Path(__file__).parent / 'datasets.py', 'rb') as f:
+                datasets_content = f.read()
+                datasets_file_hash = hashlib.md5(
+                    datasets_content + 
+                    str(self.hparams.dataset_kwargs).encode()
+                ).hexdigest()
+            cache_save_path = self.hparams.cache_dir / f'{datasets_file_hash}.joblib'
+
+        self.cache = mp.Manager().CacheDictWithSaveProxy(
+            record_dirs=record_dirs,
+            cache_save_path=cache_save_path,
+        )
+
+        if cache_save_path is None:
             return
         
         self.hparams.cache_dir.mkdir(parents=True, exist_ok=True)
-
-        # Name the cache with md5 hash of 
-        # /workspace/contrails/src/data/datasets.py file
-        # and ContrailsDataset parameters
-        # to avoid using cache when the dataset handling 
-        # is changed.
-        with open(Path(__file__).parent / 'datasets.py', 'rb') as f:
-            datasets_content = f.read()
-            datasets_file_hash = hashlib.md5(
-                datasets_content + 
-                str(self.hparams.dataset_kwargs).encode()
-            ).hexdigest()
-        cache_save_path = self.hparams.cache_dir / f'{datasets_file_hash}.joblib'
 
         # Check that only one cache file is in the cache dir
         # and its name is the same as the one we are going to create
@@ -275,11 +282,6 @@ class ContrailsDatamodule(LightningDataModule):
             f"Cache file {cache_files[0]} is not the same as the one " \
             f"we are going to create {cache_save_path}. " \
             "Please delete all cache files of previous runs."
-        
-        self.cache = mp.Manager().CacheDictWithSaveProxy(
-            record_dirs=record_dirs,
-            cache_save_path=cache_save_path,
-        )
 
         # Copy datasets.py to cache dir and
         # save cache info to a file
