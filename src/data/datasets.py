@@ -90,14 +90,6 @@ def get_images(data, type_='all', quantize=False, precomputed=False):
     if not data:
         return None
     
-    if (
-        precomputed and 
-        type_ not in ['minmaxall', 'quantilesall', 'meanstdall']
-    ):
-        logger.warning(
-            f'precomputed is not used for type_="{type_}"'
-        )
-    
     if type_ in ['all', 'quantilesall', 'meanstdall']:
         assert not quantize, \
             f'quantize=True is not supported for type_="{type_}": ' \
@@ -204,6 +196,14 @@ class ContrailsDataset:
         self.transform = transform
         self.transform_mix = transform_mix
         self.transform_cpp = transform_cpp
+        
+        if (
+            stats_precomputed and 
+            conversion_type not in ['minmaxall', 'quantilesall', 'meanstdall']
+        ):
+            logger.warning(
+                f'precomputed is not used for type_="{conversion_type}"'
+            )
         self.conversion_type = conversion_type
         self.quantize = quantize
         self.stats_precomputed = stats_precomputed
