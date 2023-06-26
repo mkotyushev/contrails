@@ -20,10 +20,10 @@ parameters:
     value: 2  # ~0.66 in terms of focal loss
   data.init_args.cache_dir:
     distribution: constant
-    value: null
+    value: "null"
   data.init_args.dataset_kwargs.band_ids:
     distribution: constant
-    value: null
+    value: "null"
   data.init_args.dataset_kwargs.mask_type:
     distribution: categorical
     values: 
