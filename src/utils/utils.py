@@ -39,6 +39,15 @@ class MyLightningCLI(LightningCLI):
 
 
 class MyLightningCLISweep(LightningCLI):
+    """Implement args binding for sweeps.
+
+    Sweep configs currently only support cartesian product of args
+    and not args binding. This is a workaround to bind args.
+
+    E. g. if some value of `backbone_name` imply usage of `compile`
+    and some not, grid search over `backbone_name` and `compile` is
+    not possible. This can be solved by binding `compile` to `backbone_name`.
+    """
     def add_arguments_to_parser(self, parser):
         """Add argument links to parser.
 
@@ -50,6 +59,29 @@ class MyLightningCLISweep(LightningCLI):
 
     def before_instantiate_classes(self) -> None:
         """Implement to run some code before instantiating the classes."""
+        device_to_batch_size_divider = {
+            'NVIDIA GeForce RTX 3090': 1,
+            'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 2,
+        }
+        backbone_name_to_batch_params = {
+            'convnextv2_base.fcmae_ft_in22k_in1k_384': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+            'eva02_B_ade_seg_upernet_sz512': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+            'maxvit_rmlp_base_rw_384.sw_in12k_ft_in1k': {
+                'batch_size': 32,
+                'accumulate_grad_batches': 2,
+            },
+            'nvidia/mit-b5': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+        }
+
         # Force not deterministic training
         if (
             self.config['fit']['model']['init_args']['backbone_name'].startswith('nvidia') or
@@ -78,6 +110,18 @@ class MyLightningCLISweep(LightningCLI):
         if self.config['fit']['model']['init_args']['lr'] is not None:
             self.config['fit']['model']['init_args']['optimizer_init']['init_args']['lr'] = \
                 self.config['fit']['model']['init_args']['lr']
+
+        # Overrride batch params (needed for different machines)
+        self.config['fit']['data']['init_args']['batch_size'] = \
+            backbone_name_to_batch_params[
+                self.config['fit']['model']['init_args']['backbone_name']
+            ]['batch_size'] // \
+            device_to_batch_size_divider[torch.cuda.get_device_name()]
+        self.config['fit']['trainer']['accumulate_grad_batches'] = \
+            backbone_name_to_batch_params[
+                self.config['fit']['model']['init_args']['backbone_name']
+            ]['accumulate_grad_batches'] * \
+            device_to_batch_size_divider[torch.cuda.get_device_name()]
 
 
 class TrainerWandb(Trainer):
