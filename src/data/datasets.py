@@ -172,7 +172,7 @@ class ContrailsDataset:
         # thus change cache behavior.
         # See ContrailsDatamodule.make_cache for details.
         *,
-        band_ids: Tuple[int] = BANDS,
+        band_ids: Optional[Tuple[int]] = None,
         mask_type: Literal['voting50', 'mean', 'weighted'] = 'voting50',
         propagate_mask: bool = False,
         mmap: bool = False,
@@ -191,6 +191,8 @@ class ContrailsDataset:
         self.record_dirs = record_dirs
         self.records = None
 
+        if band_ids is None:
+            band_ids = tuple(BANDS)
         assert all(band in BANDS for band in band_ids)
         self.band_ids = band_ids
 
