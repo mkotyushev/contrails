@@ -1,0 +1,49 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - ${args}
+method: grid
+parameters:
+  model.init_args.backbone_name:
+    distribution: constant
+    value: nvidia/mit-b5
+  model.init_args.loss_name:
+    distribution: constant
+    value: focal=1.0
+  model.init_args.pos_weight:
+    distribution: constant
+    value: 2  # ~0.66 in terms of focal loss
+  data.init_args.cache_dir:
+    distribution: constant
+    value: null
+  data.init_args.dataset_kwargs.band_ids:
+    distribution: constant
+    value: null
+  data.init_args.dataset_kwargs.mask_type:
+    distribution: categorical
+    values: 
+    - voting50
+    - mean
+    - weighted
+  data.init_args.dataset_kwargs.conversion_type:
+    distribution: categorical
+    values: 
+    - ash 
+    - minmaxall 
+    - quantilesall 
+    - meanstdall
+  data.init_args.dataset_kwargs.quantize:
+    distribution: categorical
+    values: 
+    - false
+    - true
+  data.init_args.dataset_kwargs.stats_precomputed:
+    distribution: categorical
+    values:
+    - false
+    - true
