@@ -21,29 +21,31 @@ parameters:
   data.init_args.cache_dir:
     distribution: constant
     value: "null"
-  data.init_args.dataset_kwargs.band_ids:
-    distribution: constant
-    value: [8, 9, 10, 11, 12, 13, 14, 15, 16]
-  data.init_args.dataset_kwargs.mask_type:
-    distribution: categorical
-    values: 
-    - voting50
-    - mean
-    - weighted
-  data.init_args.dataset_kwargs.conversion_type:
-    distribution: categorical
-    values: 
-    - ash 
-    - minmaxall 
-    - quantilesall 
-    - meanstdall
-  data.init_args.dataset_kwargs.quantize:
-    distribution: categorical
-    values: 
-    - false
-    - true
-  data.init_args.dataset_kwargs.stats_precomputed:
-    distribution: categorical
-    values:
-    - false
-    - true
+  data.init_args.dataset_kwargs:
+    parameters:
+      band_ids:
+        distribution: constant
+        value: [8, 9, 10, 11, 12, 13, 14, 15, 16]
+      mask_type:
+        distribution: categorical
+        values: 
+        - voting50
+        - mean
+        - weighted
+      conversion_type:
+        distribution: categorical
+        values: 
+        - ash 
+        - minmaxall 
+        - quantilesall 
+        - meanstdall
+      quantize:
+        distribution: categorical
+        values: 
+        - false
+        - true
+      stats_precomputed:
+        distribution: categorical
+        values:
+        - false
+        - true
