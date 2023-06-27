@@ -78,8 +78,8 @@ class ContrailsDatamodule(LightningDataModule):
         self.val_transform = None
         self.test_transform = None
 
-        self.train_volume_mean = IMAGENET_DEFAULT_MEAN
-        self.train_volume_std = IMAGENET_DEFAULT_STD
+        self.train_volume_mean = sum(IMAGENET_DEFAULT_MEAN) / len(IMAGENET_DEFAULT_MEAN)
+        self.train_volume_std = sum(IMAGENET_DEFAULT_STD) / len(IMAGENET_DEFAULT_STD)
 
         self.collate_fn = contrails_collate_fn
         self.cache = None
