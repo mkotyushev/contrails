@@ -664,6 +664,8 @@ class SegmentationModule(BaseModule):
         )
         self.save_hyperparameters()
 
+        torch.set_float32_matmul_precision('medium')
+
         if backbone_name.startswith('eva02'):
             self.model = build_segmentation_eva02(
                 in_channels=in_channels, 
