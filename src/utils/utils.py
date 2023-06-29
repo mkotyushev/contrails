@@ -139,6 +139,8 @@ class MyLightningCLISweep(LightningCLI):
             self.config['fit']['data']['init_args']['num_workers'],
         )
 
+        logger.info(f'Updated config: {self.config}')
+
 
 class TrainerWandb(Trainer):
     """Hotfix for wandb logger saving config & artifacts to project root dir
