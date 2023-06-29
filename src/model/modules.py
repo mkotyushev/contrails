@@ -9,7 +9,8 @@ from lightning import LightningModule
 from typing import Any, Dict, Literal, Optional, Union
 from torch import Tensor
 from lightning.pytorch.cli import instantiate_class
-from torchmetrics import Dice, Metric
+from torchmetrics.classification import BinaryF1Score 
+from torchmetrics import Metric
 from lightning.pytorch.utilities import grad_norm
 from torchvision.ops import sigmoid_focal_loss
 from transformers import SegformerForSemanticSegmentation
@@ -761,7 +762,7 @@ class SegmentationModule(BaseModule):
         metrics = ModuleDict(
             {
                 'preview': PredictionTargetPreviewGrid(preview_downscale=4, n_images=9),
-                'dice': Dice(average='micro'),
+                'dice': BinaryF1Score(ignore_index=0),
             }
         )
         self.metrics = ModuleDict(
