@@ -62,6 +62,7 @@ class MyLightningCLISweep(LightningCLI):
         device_to_batch_size_divider = {
             'NVIDIA GeForce RTX 3090': 1,
             'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 2,
+            'Tesla T4': 2,
         }
         backbone_name_to_batch_params = {
             'convnextv2_base.fcmae_ft_in22k_in1k_384': {
