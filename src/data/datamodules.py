@@ -182,7 +182,7 @@ class ContrailsDatamodule(LightningDataModule):
             # List all dirs in each data_dir
             dirs = []
             for data_dir in self.hparams.data_dirs:
-                dirs += [path for path in data_dir.iterdir() if path.is_dir()]
+                dirs += [path for path in sorted(data_dir.iterdir()) if path.is_dir()]
             
             if self.hparams.fold_index is not None:
                 fold_split_info_path = self.hparams.split_info_dir / f'fold_{self.hparams.fold_index}.joblib'
