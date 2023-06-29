@@ -187,8 +187,9 @@ class ModelCheckpointNoSave(ModelCheckpoint):
             for logger in trainer.loggers:
                 logger.after_save_checkpoint(proxy(self))
     
-    def on_fit_end(self, trainer, pl_module) -> None:
-        """Called when fit ends."""
+    def on_validation_end(self, trainer, pl_module) -> None:
+        super().on_validation_end(trainer, pl_module)
+
         pl_module.logger.experiment.log(
             {
                 'best_epoch': self.best_epoch(), 
