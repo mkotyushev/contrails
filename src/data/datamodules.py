@@ -2,6 +2,7 @@ import hashlib
 import logging
 import albumentations as A
 import multiprocessing as mp
+import joblib
 import yaml
 import git
 from pathlib import Path
@@ -44,6 +45,7 @@ class ContrailsDatamodule(LightningDataModule):
         use_online_val_test: bool = False,
         cache_dir: Optional[Path] = None,
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
+        split_info_dir: Optional[Path] = None,
     ):
         super().__init__()
 
@@ -183,12 +185,32 @@ class ContrailsDatamodule(LightningDataModule):
                 dirs += [path for path in data_dir.iterdir() if path.is_dir()]
             
             if self.hparams.fold_index is not None:
-                (
-                    train_record_dirs, \
-                    val_record_dirs, 
-                    train_is_mask_empty, 
-                    _,
-                ) = self.split_train_val(dirs)
+                fold_split_info_path = self.hparams.split_info_dir / f'fold_{self.hparams.fold_index}.joblib'
+                if self.hparams.split_info_dir is not None and fold_split_info_path.exists():
+                    (
+                        train_record_dirs, \
+                        val_record_dirs, 
+                        train_is_mask_empty, 
+                        _,
+                    ) = joblib.load(fold_split_info_path)
+                else:
+                    (
+                        train_record_dirs, \
+                        val_record_dirs, 
+                        train_is_mask_empty, 
+                        _,
+                    ) = self.split_train_val(dirs)
+                    if self.hparams.split_info_dir is not None:
+                        self.hparams.split_info_dir.mkdir(parents=True, exist_ok=True)
+                        joblib.dump(
+                            (
+                                train_record_dirs, 
+                                val_record_dirs, 
+                                train_is_mask_empty, 
+                                _,
+                            ), 
+                            fold_split_info_path,
+                        )
             else:
                 train_record_dirs = dirs
 

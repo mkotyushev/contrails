@@ -142,6 +142,7 @@ data:
       quantize: true
       stats_precomputed: false
     cache_dir: cache
+    split_info_dir: split_info
     empty_mask_strategy: null
     mix_transform_name: null
     batch_size: 16
