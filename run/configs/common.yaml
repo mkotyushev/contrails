@@ -121,8 +121,8 @@ data:
   class_path: src.data.datamodules.ContrailsDatamodule
   init_args:
     data_dirs: 
-      - /workspace/data/train
-      - /workspace/data/validation
+      - ../data/train
+      - ../data/validation
     data_dirs_test: null
     num_folds: 5
     fold_index: 0
