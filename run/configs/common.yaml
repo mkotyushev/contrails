@@ -130,7 +130,7 @@ data:
     random_state: 0
     dataset_kwargs:
       band_ids: [11, 14, 15]
-      mask_type: voting50
+      mask_type: weighted
       propagate_mask: false
       mmap: true
       conversion_type: ash
