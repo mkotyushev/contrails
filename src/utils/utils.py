@@ -20,6 +20,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger, TensorBoardLogger
 from timm.layers.format import nhwc_to, Format
 from torchvision.utils import make_grid
+from lightning.pytorch.callbacks import EarlyStopping
 
 
 logger = logging.getLogger(__name__)
@@ -140,6 +141,56 @@ class MyLightningCLISweep(LightningCLI):
         )
 
         logger.info(f'Updated config: {self.config}')
+
+
+class EarlyStoppingNotReached(EarlyStopping):
+    """Early stopping callback that in addition to conventional one
+    stops the training if the critical value is not reached by 
+    the critical epoch.
+    """
+    def __init__(self, critical_value: float, critical_epoch: int, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.critical_value = torch.tensor(critical_value)
+        self.critical_epoch = critical_epoch
+
+    def _run_early_stopping_check(self, trainer) -> None:
+        """Checks whether the early stopping condition is met and if so tells the trainer to stop the training."""
+        super()._run_early_stopping_check(trainer)
+        if self.stopped_epoch != 0:
+            return
+
+        logs = trainer.callback_metrics
+        
+        if trainer.fast_dev_run or not self._validate_condition_metric(  # disable early_stopping with fast_dev_run
+            logs
+        ):  # short circuit if metric not present
+            return
+        
+        current = logs[self.monitor].squeeze()
+        should_stop, reason = self._evaluate_stopping_criteria_aux(current, trainer.current_epoch)
+        
+        # stop every ddp process if any world process decides to stop
+        should_stop = trainer.strategy.reduce_boolean_decision(should_stop, all=False)
+        trainer.should_stop = trainer.should_stop or should_stop
+        if should_stop:
+            self.stopped_epoch = trainer.current_epoch
+        if reason and self.verbose:
+            self._log_info(trainer, reason, self.log_rank_zero_only)
+    
+    def _evaluate_stopping_criteria_aux(self, current: torch.Tensor, current_epoch: int) -> Tuple[bool, Optional[str]]:
+        should_stop = False
+        reason = None
+        
+        # If the critical value is not reached by the critical epoch, stop the training
+        if current_epoch >= self.critical_epoch and not self.monitor_op(current - self.min_delta, self.critical_value.to(current.device)):
+            should_stop = True
+            reason = (
+                f"Monitored metric {self.monitor} did not reach the critical value {self.critical_value:.3f} by the critical epoch {self.critical_epoch}"
+                f" Best score: {self.best_score:.3f}. Signaling Trainer to stop."
+            )
+        
+        return should_stop, reason
 
 
 class TrainerWandb(Trainer):

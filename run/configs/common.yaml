@@ -8,11 +8,13 @@ trainer:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
       init_args:
         logging_interval: step
-    - class_path: lightning.pytorch.callbacks.EarlyStopping
+    - class_path: src.utils.utils.EarlyStoppingNotReached
       init_args:
         monitor: v_dice
         mode: max
         patience: 5
+        critical_value: 0.3
+        critical_epoch: 5
     - class_path: src.utils.utils.ModelCheckpointNoSave
     # - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
