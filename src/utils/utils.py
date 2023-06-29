@@ -112,16 +112,24 @@ class MyLightningCLISweep(LightningCLI):
                 self.config['fit']['model']['init_args']['lr']
 
         # Overrride batch params (needed for different machines)
+        device_name = torch.cuda.get_device_name()
+        if device_name not in device_to_batch_size_divider:
+            logger.warning(
+                f'Unknown device {device_name}. '
+                f'Using default batch size and accumulate_grad_batches.'
+            )
+            device_to_batch_size_divider[device_name] = 1
+
         self.config['fit']['data']['init_args']['batch_size'] = \
             backbone_name_to_batch_params[
                 self.config['fit']['model']['init_args']['backbone_name']
             ]['batch_size'] // \
-            device_to_batch_size_divider[torch.cuda.get_device_name()]
+            device_to_batch_size_divider[device_name]
         self.config['fit']['trainer']['accumulate_grad_batches'] = \
             backbone_name_to_batch_params[
                 self.config['fit']['model']['init_args']['backbone_name']
             ]['accumulate_grad_batches'] * \
-            device_to_batch_size_divider[torch.cuda.get_device_name()]
+            device_to_batch_size_divider[device_name]
 
 
 class TrainerWandb(Trainer):
