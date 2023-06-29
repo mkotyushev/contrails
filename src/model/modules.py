@@ -762,7 +762,8 @@ class SegmentationModule(BaseModule):
         metrics = ModuleDict(
             {
                 'preview': PredictionTargetPreviewGrid(preview_downscale=4, n_images=9),
-                'dice': BinaryF1Score(ignore_index=0),
+                'dice': BinaryF1Score(),
+                'dice_pos': BinaryF1Score(ignore_index=0),
             }
         )
         self.metrics = ModuleDict(
