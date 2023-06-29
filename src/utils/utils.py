@@ -1,3 +1,4 @@
+import multiprocessing
 import cv2
 import logging
 import numpy as np
@@ -131,6 +132,12 @@ class MyLightningCLISweep(LightningCLI):
                 self.config['fit']['model']['init_args']['backbone_name']
             ]['accumulate_grad_batches'] * \
             device_to_batch_size_divider[device_name]
+        
+        # Set num_workers to min(number of threads, num_workers)
+        self.config['fit']['data']['init_args']['num_workers'] = min(
+            multiprocessing.cpu_count(),
+            self.config['fit']['data']['init_args']['num_workers'],
+        )
 
 
 class TrainerWandb(Trainer):
