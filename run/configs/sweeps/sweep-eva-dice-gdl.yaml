@@ -1,0 +1,21 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - ${args}
+method: grid
+parameters:
+  model.init_args.backbone_name:
+    distribution: categorical
+    values: 
+    - eva02_B_ade_seg_upernet_sz512
+  model.init_args.loss_name:
+    distribution: categorical
+    values:
+    - dice=1.0
+    - dice=0.5+gdl=0.5
+    - gdl=1.0
