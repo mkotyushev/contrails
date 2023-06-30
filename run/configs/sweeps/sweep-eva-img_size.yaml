@@ -1,0 +1,24 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - ${args}
+method: grid
+parameters:
+  model.init_args.backbone_name:
+    distribution: categorical
+    values: 
+    - eva02_B_ade_seg_upernet_sz512
+  data.init_args.img_size:
+    distribution: categorical
+    values:
+    - 256
+    - 384
+    - 512
+    - 640
+    - 768
+    - 1024
