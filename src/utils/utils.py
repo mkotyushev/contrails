@@ -1,3 +1,4 @@
+import math
 import multiprocessing
 import cv2
 import logging
@@ -67,7 +68,7 @@ class MyLightningCLISweep(LightningCLI):
             'Tesla T4': 2,
             'Tesla V100-SXM2-16GB': 2,
         }
-        backbone_name_to_batch_params = {
+        backbone_name_to_batch_params_img_size_256 = {
             'convnextv2_base.fcmae_ft_in22k_in1k_384': {
                 'batch_size': 64,
                 'accumulate_grad_batches': 1,
@@ -124,16 +125,34 @@ class MyLightningCLISweep(LightningCLI):
             )
             device_to_batch_size_divider[device_name] = 1
 
+        # Scale batch size and accumulate_grad_batches with image size
+        area_divider = self.config['fit']['data']['init_args']['img_size'] ** 2 / 256 ** 2
+        batch_size = backbone_name_to_batch_params_img_size_256[
+            self.config['fit']['model']['init_args']['backbone_name']
+        ]['batch_size']
+        accumulate_grad_batches = backbone_name_to_batch_params_img_size_256[
+            self.config['fit']['model']['init_args']['backbone_name']
+        ]['accumulate_grad_batches']
+        divider = device_to_batch_size_divider[device_name] * area_divider
+
+        assert batch_size / divider >= 1, \
+            f'It is mandatory in current experiment settings to have batch size ' \
+            f'(including accumulation) ~ 64, current ' \
+            f'batch size {batch_size} @ 256px imply batch size @ ' \
+            f'{self.config["fit"]["data"]["init_args"]["img_size"]}px to be ' \
+            f'{batch_size / divider} which is less than 1.'
+
+        if not math.isclose(batch_size / divider - math.floor(batch_size / divider), 0.0):
+            logger.warning(
+                f'Batch size {batch_size} is not divisible by {divider}. '
+                f'Set batch size to {math.floor(batch_size / divider)} and '
+                f'accumulate_grad_batches to {math.ceil(accumulate_grad_batches * divider)}.'
+            )
+
         self.config['fit']['data']['init_args']['batch_size'] = \
-            backbone_name_to_batch_params[
-                self.config['fit']['model']['init_args']['backbone_name']
-            ]['batch_size'] // \
-            device_to_batch_size_divider[device_name]
+            math.floor(batch_size / divider)
         self.config['fit']['trainer']['accumulate_grad_batches'] = \
-            backbone_name_to_batch_params[
-                self.config['fit']['model']['init_args']['backbone_name']
-            ]['accumulate_grad_batches'] * \
-            device_to_batch_size_divider[device_name]
+            math.ceil(accumulate_grad_batches * divider)
         
         # Set num_workers to min(number of threads, num_workers)
         self.config['fit']['data']['init_args']['num_workers'] = min(
