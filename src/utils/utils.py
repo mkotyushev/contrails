@@ -38,10 +38,13 @@ class MyLightningCLI(LightningCLI):
         Example:
             parser.link_arguments("data.init_args.img_size", "model.init_args.img_size")
         """
-        return
+        parser.link_arguments(
+            "data.init_args.img_size", 
+            "model.init_args.img_size",
+        )
 
 
-class MyLightningCLISweep(LightningCLI):
+class MyLightningCLISweep(MyLightningCLI):
     """Implement args binding for sweeps.
 
     Sweep configs currently only support cartesian product of args
@@ -51,15 +54,6 @@ class MyLightningCLISweep(LightningCLI):
     and some not, grid search over `backbone_name` and `compile` is
     not possible. This can be solved by binding `compile` to `backbone_name`.
     """
-    def add_arguments_to_parser(self, parser):
-        """Add argument links to parser.
-
-        Example:
-            parser.link_arguments("data.init_args.img_size", "model.init_args.img_size")
-        """
-        return
-
-
     def before_instantiate_classes(self) -> None:
         """Implement to run some code before instantiating the classes."""
         device_to_batch_size_divider = {

@@ -78,7 +78,6 @@ model:
   init_args:
     decoder_attention_type: null
     in_channels: 3
-    img_size: 256
     backbone_name: null
     log_preview_every_n_epochs: 1
     tta_params: null
