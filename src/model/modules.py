@@ -438,6 +438,10 @@ eva02_backbone_name_to_params = {
         'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernet_eva02_base_12_512_slide_60k.py',
         'ckpt_path': './pretrained/eva02_B_ade_seg_upernet_sz512.pth',
     },
+    'eva02_L_ade_seg_upernet_sz512': {
+        'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernet_eva02_large_24_512_slide_80k.py',
+        'ckpt_path': './pretrained/eva02_L_ade_seg_upernet_sz512.pth',
+    },
     'eva02_L_ade_seg_upernet_sz640': {
         'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernetpro_eva02_large_24_640_slide_80k.py',
         'ckpt_path': './pretrained/eva02_L_ade_seg_upernet_sz640.pth',
