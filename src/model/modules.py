@@ -748,8 +748,8 @@ class SegmentationModule(BaseModule):
                 loss_value = loss_fn(preds, batch['mask'])
             elif loss_name == 'gdl':
                 loss_value = generalized_dice_loss(
-                    preds.squeeze(1).float().flatten(),
-                    batch['mask'].float().flatten(),
+                    preds.squeeze(1).float(),
+                    batch['mask'].float(),
                 )
             
             losses[loss_name] = loss_value * loss_weight
