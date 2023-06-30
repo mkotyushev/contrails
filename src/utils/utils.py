@@ -2,6 +2,7 @@ import math
 import multiprocessing
 import cv2
 import logging
+import os
 import numpy as np
 import scipy
 import torch
@@ -17,11 +18,11 @@ from collections import defaultdict
 from typing import Dict, Optional, Union, Tuple
 from lightning import Trainer
 from lightning.pytorch.cli import LightningCLI
-from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger, TensorBoardLogger
 from timm.layers.format import nhwc_to, Format
 from torchvision.utils import make_grid
-from lightning.pytorch.callbacks import EarlyStopping
+from lightning.pytorch.callbacks import EarlyStopping, Callback, ModelCheckpoint
+from torch_ema import ExponentialMovingAverage
 
 
 logger = logging.getLogger(__name__)
@@ -777,3 +778,34 @@ CacheDictWithSaveProxy = MakeProxyType("CacheDictWithSaveProxy", [
 
 # Register proxy on the main process
 SyncManager.register("CacheDictWithSaveProxy", CacheDictWithSave, CacheDictWithSaveProxy)
+
+
+class EMACallback(Callback):
+    """Wrapper around https://github.com/fadel/pytorch_ema
+    library: keep track of exponential moving average of model 
+    weights across epochs with given decay and saves it 
+    on the end of training to each attached ModelCheckpoint 
+    callback output dir as `ema-{decay}.pth` file.
+    """
+    def __init__(self, decay=0.9):
+        super().__init__()
+        self.ema = None
+        self.decay = decay
+
+    def on_fit_start(self, trainer, pl_module):
+        self.ema = ExponentialMovingAverage(pl_module.parameters(), decay=self.decay)
+    
+    def on_validation_end(self, trainer, pl_module):
+        self.ema.update()
+    
+    def on_train_end(self, trainer, pl_module):
+        with self.ema.average_parameters():
+            for cb in trainer.checkpoint_callbacks:
+                if (
+                    isinstance(cb, ModelCheckpoint) and 
+                    not isinstance(cb, ModelCheckpointNoSave)
+                ):
+                    trainer.save_checkpoint(
+                        os.path.join(cb.dirpath, f'ema-{self.decay}.pth'),
+                        weights_only=False,  # to easily operate via PL API
+                    )
