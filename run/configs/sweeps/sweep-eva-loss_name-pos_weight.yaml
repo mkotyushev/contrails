@@ -7,7 +7,7 @@ command:
   - --config
   - run/configs/common.yaml
   - ${args}
-method: grid
+method: random
 parameters:
   model.init_args.backbone_name:
     distribution: categorical
@@ -21,9 +21,6 @@ parameters:
     - bce=0.25+dice=0.75
     - bce=0.1+dice=0.9
   model.init_args.pos_weight:
-    distribution: categorical
-    values:
-    - 1
-    - 0.001
-    - 0.0001
-    - 0.00001
+    distribution: log_uniform_values
+    min: 0.00001
+    max: 1
