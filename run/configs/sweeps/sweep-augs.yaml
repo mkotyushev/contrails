@@ -15,10 +15,12 @@ parameters:
   data.init_args.batch_size:
     distribution: constant
     value: 32
+  trainer.max_epochs:
+    distribution: constant
+    value: 64
   data.init_args.randaugment_num_ops:
     distribution: categorical
     values:
-    - 0
     - 1
     - 2
     - 3
@@ -45,9 +47,3 @@ parameters:
     - 13
     - 14
     - 15
-  data.init_args.coarse_dropout_size:
-    distribution: categorical
-    values:
-    - 0.1
-    - 0.2
-    - 0.3
