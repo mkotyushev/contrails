@@ -254,10 +254,22 @@ class RandAugment:
         self.augment_list = augment_list()
 
     def __call__(self, *args, force_apply: bool = False, **kwargs):
-        pair = kwargs['image'], kwargs['mask']
+        image, mask = kwargs['image'], kwargs['mask']
+        if isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
+        if isinstance(mask, np.ndarray):
+            mask = Image.fromarray(mask)
+        
+        pair = image, mask
         ops = random.choices(self.augment_list, k=self.n)
         for op, minval, maxval in ops:
             val = (float(self.m) / 30) * float(maxval - minval) + minval
             pair = op(pair, val)
-        kwargs['image'], kwargs['mask'] = pair
+        
+        image, mask = pair
+        image = np.array(image)
+        mask = np.array(mask)
+        
+        kwargs['image'], kwargs['mask'] = image, mask
+        
         return kwargs
