@@ -1,0 +1,10 @@
+trainer:
+  deterministic: true
+  accumulate_grad_batches: 1
+model:
+  init_args:
+    backbone_name: tf_efficientnetv2_l.in21k_ft_in1k
+    compile: true  # TODO: enable compiling for convnext
+data:
+  init_args:
+    batch_size: 64

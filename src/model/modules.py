@@ -430,6 +430,13 @@ backbone_name_to_params = {
         'decoder_out_channels': (256, 128, 64),
         'format': 'NCHW',
     },
+    'efficientnetv2': {
+        'upsampling': 4,
+        'decoder_channels': (256, 128, 64),
+        'decoder_mid_channels': (256, 128, 64),
+        'decoder_out_channels': (256, 128, 64),
+        'format': 'NCHW',
+    }
 }
 
 
@@ -585,7 +592,10 @@ def build_segmentation_timm(
     pretrained=True,
 ):
     """Build segmentation model."""
-    backbone_param_key = backbone_name.split('_')[0]
+    if backbone_name.startswith('tf_'):
+        backbone_param_key = backbone_name.split('_')[1]
+    else:
+        backbone_param_key = backbone_name.split('_')[0]
     create_model_kwargs = {}
     if backbone_param_key in ['swinv2', 'maxvit']:
         create_model_kwargs['img_size'] = img_size
