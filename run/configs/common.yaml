@@ -134,6 +134,9 @@ data:
     fold_index: 0
     img_size: 256
     random_state: 0
+    randaugment_num_ops: 2
+    randaugment_magnitude: 9
+    coarse_dropout_size: 0.3
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: weighted

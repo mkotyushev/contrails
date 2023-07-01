@@ -418,6 +418,8 @@ class ContrailsDataset:
         # - single transform to both components of cpp and mix
         # Apply single transform
         if self.transform is not None:
-            output = self.transform(**output)
+            img, mask = output['image'], output['mask']
+            img, mask = self.transform(img, mask)
+            output['image'], output['mask'] = img, mask
 
         return output

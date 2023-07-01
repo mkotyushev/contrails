@@ -20,6 +20,7 @@ from src.data.transforms import (
     MixUp,
 )
 from src.utils.utils import contrails_collate_fn
+from src.utils.randaugment import RandAugment
 
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,9 @@ class ContrailsDatamodule(LightningDataModule):
         random_state: int = 0,
         img_size: int = 256,
         dataset_kwargs: Optional[dict] = None,
+        randaugment_num_ops: int = 2,
+        randaugment_magnitude: int = 9,
+        coarse_dropout_size: Optional[float] = None,
         mix_transform_name: Optional[str] = None,
         batch_size: int = 32,
         num_workers: int = 0,
@@ -65,6 +69,9 @@ class ContrailsDatamodule(LightningDataModule):
             num_folds is not None and fold_index is not None
         ), 'num_folds and fold_index must be both None or both not None'
 
+        assert coarse_dropout_size is None or \
+            (coarse_dropout_size > 0 and coarse_dropout_size < 1), \
+            'coarse_dropout_size must be in (0, 1)'
         assert mix_transform_name is None or \
             mix_transform_name in ['cutmix', 'mixup'], \
             'mix_transform_name must be one of [cutmix, mixup]'
@@ -87,39 +94,21 @@ class ContrailsDatamodule(LightningDataModule):
         self.cache = None
 
     def build_transforms(self) -> None:
-        # Train augmentations     
-        self.train_transform = A.Compose(
-            [
-                A.ShiftScaleRotate(
-                    shift_limit=0.1,
-                    scale_limit=0.1,
-                    rotate_limit=45,
-                    p=0.5,
-                ),
-                A.Resize(
-                    height=self.hparams.img_size,
-                    width=self.hparams.img_size,
-                    always_apply=True,
-                ),
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.5),
-                A.RandomRotate90(p=0.5),
-                A.RandomBrightnessContrast(p=0.5, brightness_limit=0.1, contrast_limit=0.1),
-                A.OneOf(
-                    [
-                        A.GaussNoise(var_limit=[10, 50]),
-                        A.GaussianBlur(),
-                        A.MotionBlur(),
-                    ], 
-                    p=0.4
-                ),
-                A.GridDistortion(num_steps=5, distort_limit=0.3, p=0.5),
+        # Train augmentations
+        coarse_dropout_transform = []
+        if self.hparams.coarse_dropout_size is not None:
+            coarse_dropout_transform = [
                 A.CoarseDropout(
                     max_holes=1, 
                     max_width=int(self.hparams.img_size * 0.3), 
                     max_height=int(self.hparams.img_size * 0.3), 
                     mask_fill_value=0, p=0.5
-                ),
+                )
+            ]
+        self.train_transform = A.Compose(
+            [
+                *coarse_dropout_transform,
+                RandAugment(self.hparams.randaugment_num_ops, self.hparams.randaugment_magnitude),
                 A.Normalize(
                     max_pixel_value=255.0,
                     mean=self.train_volume_mean,
