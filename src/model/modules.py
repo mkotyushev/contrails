@@ -436,7 +436,14 @@ backbone_name_to_params = {
         'decoder_mid_channels': (256, 128, 64),
         'decoder_out_channels': (256, 128, 64),
         'format': 'NCHW',
-    }
+    },
+    'efficientnet': {
+        'upsampling': 4,
+        'decoder_channels': (256, 128, 64),
+        'decoder_mid_channels': (256, 128, 64),
+        'decoder_out_channels': (256, 128, 64),
+        'format': 'NCHW',
+    },
 }
 
 
