@@ -437,14 +437,17 @@ eva02_backbone_name_to_params = {
     'eva02_B_ade_seg_upernet_sz512': {
         'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernet_eva02_base_12_512_slide_60k.py',
         'ckpt_path': './pretrained/eva02_B_ade_seg_upernet_sz512.pth',
+        'img_size': 512,
     },
     'eva02_L_ade_seg_upernet_sz512': {
         'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernet_eva02_large_24_512_slide_80k.py',
         'ckpt_path': './pretrained/eva02_L_ade_seg_upernet_sz512.pth',
+        'img_size': 512,
     },
     'eva02_L_ade_seg_upernet_sz640': {
         'cfg_path': './lib/EVA/EVA-02/seg/configs/eva02/upernet/upernetpro_eva02_large_24_640_slide_80k.py',
         'ckpt_path': './pretrained/eva02_L_ade_seg_upernet_sz640.pth',
+        'img_size': 640,
     },
 }
 def build_segmentation_eva02(
@@ -460,23 +463,102 @@ def build_segmentation_eva02(
     from backbone import eva2
     from mmseg.models import build_segmentor
     from mmengine.runner import load_checkpoint
+    from mmengine.runner.checkpoint import _load_checkpoint, _load_checkpoint_to_model
     from mmengine.config import Config
+
+    def load_checkpoint_to_model_eva02(checkpoint, model):
+        """Modify checkpoint for different img_size & load it to model.
+
+        Interpolate pos_embed weight along dim 1 -- number of patches 
+        + 1 for cls token -- which is different for different img_size.
+        """
+        # Get pos_embed weight
+        pos_embed = checkpoint['state_dict']['backbone.pos_embed']
+        pretrained_n_patches = pos_embed.shape[1] - 1
+
+        # Extract all except first pos embedding corresponding to cls token
+        cls_pos_embed = pos_embed[:, 0, :].unsqueeze(1)
+        pos_embed = pos_embed[:, 1:, :]
+
+        # Permute and reshapre to square to interpolate 
+        # along last dims:
+        # (1, N, E) -> (1, E, N) -> (1, E, sqrt(N), sqrt(N))
+        assert int(pos_embed.shape[1] ** 0.5) ** 2 == pos_embed.shape[1], \
+            f'checkpoint pos_embed.shape[1] must be a square, got {pos_embed.shape[1]}'
+        assert int((model.backbone.pos_embed.shape[1] - 1) ** 0.5) ** 2 == model.backbone.pos_embed.shape[1] - 1, \
+            f'model pos_embed.shape[1] must be a square + 1, got {model.backbone.pos_embed.shape[1]}'
+        pos_embed = pos_embed.permute(0, 2, 1)
+        pos_embed = pos_embed.reshape(
+            (
+                pos_embed.shape[0],
+                pos_embed.shape[1],
+                int(pretrained_n_patches ** 0.5),
+                int(pretrained_n_patches ** 0.5),
+            )
+        )
+
+        # Interpolate
+        current_n_patches = model.backbone.pos_embed.shape[1] - 1
+        pos_embed = F.interpolate(
+            pos_embed, 
+            size=(
+                int(current_n_patches ** 0.5), 
+                int(current_n_patches ** 0.5)
+            ), 
+            mode='bilinear',
+        )
+
+        # Reshape back:
+        # (1, E, sqrt(N), sqrt(N)) -> (1, E, N) -> (1, N, E)
+        pos_embed = pos_embed.flatten(2)
+        pos_embed = pos_embed.permute(0, 2, 1)
+
+        # Assign to model
+        checkpoint['state_dict']['backbone.pos_embed'] = torch.cat(
+            [cls_pos_embed, pos_embed], dim=1
+        )
+
+        _load_checkpoint_to_model(
+            model, 
+            checkpoint, 
+            strict=False, 
+            logger=None, 
+            revise_keys=[(r'^module\.', '')],
+        )
     
     # Get config
     cfg_path = eva02_backbone_name_to_params[backbone_name]['cfg_path']
     cfg = Config.fromfile(cfg_path)
     cfg.model.decode_head.num_classes = 1
     cfg.model.auxiliary_head.num_classes = 1
-    cfg.model.backbone.img_size = img_size
 
     # Build model & load checkpoint
-    model = build_segmentor(
-        cfg.model,
-        train_cfg=cfg.get('train_cfg'),
-        test_cfg=cfg.get('test_cfg'))
     if pretrained:
         ckpt_path = eva02_backbone_name_to_params[backbone_name]['ckpt_path']
-        load_checkpoint(model, ckpt_path, map_location='cuda')
+        if img_size == eva02_backbone_name_to_params[backbone_name]['img_size']:
+            # Simply load checkpoint with mmseg built-in function
+            model = build_segmentor(
+                cfg.model,
+                train_cfg=cfg.get('train_cfg'),
+                test_cfg=cfg.get('test_cfg'),
+            )
+            load_checkpoint(model, ckpt_path, map_location='cuda')
+        else:
+            # Change img_size
+            cfg.model.backbone.img_size = img_size
+
+            # Manually load weights
+            checkpoint = _load_checkpoint(ckpt_path, map_location='cuda', logger=None)
+
+            # Create model
+            model = build_segmentor(
+                cfg.model,
+                train_cfg=cfg.get('train_cfg'),
+                test_cfg=cfg.get('test_cfg'),
+            )
+
+            # Load checkpoint with interpolation of pos_embed
+            load_checkpoint_to_model_eva02(checkpoint, model)
     
     # Patch first conv from 3 to in_channels
     patch_first_conv(
