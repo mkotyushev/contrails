@@ -253,11 +253,11 @@ class RandAugment:
         self.m = m      # [0, 30]
         self.augment_list = augment_list()
 
-    def __call__(self, img, mask):
-        pair = img, mask
+    def __call__(self, *args, force_apply: bool = False, **kwargs):
+        pair = kwargs['image'], kwargs['mask']
         ops = random.choices(self.augment_list, k=self.n)
         for op, minval, maxval in ops:
             val = (float(self.m) / 30) * float(maxval - minval) + minval
             pair = op(pair, val)
-
-        return pair
+        kwargs['image'], kwargs['mask'] = pair
+        return kwargs
