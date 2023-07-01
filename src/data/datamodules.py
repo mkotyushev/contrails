@@ -39,7 +39,6 @@ class ContrailsDatamodule(LightningDataModule):
         dataset_kwargs: Optional[dict] = None,
         randaugment_num_ops: int = 2,
         randaugment_magnitude: int = 9,
-        coarse_dropout_size: Optional[float] = None,
         mix_transform_name: Optional[str] = None,
         batch_size: int = 32,
         num_workers: int = 0,
@@ -69,9 +68,6 @@ class ContrailsDatamodule(LightningDataModule):
             num_folds is not None and fold_index is not None
         ), 'num_folds and fold_index must be both None or both not None'
 
-        assert coarse_dropout_size is None or \
-            (coarse_dropout_size > 0 and coarse_dropout_size < 1), \
-            'coarse_dropout_size must be in (0, 1)'
         assert mix_transform_name is None or \
             mix_transform_name in ['cutmix', 'mixup'], \
             'mix_transform_name must be one of [cutmix, mixup]'
@@ -95,19 +91,8 @@ class ContrailsDatamodule(LightningDataModule):
 
     def build_transforms(self) -> None:
         # Train augmentations
-        coarse_dropout_transform = []
-        if self.hparams.coarse_dropout_size is not None:
-            coarse_dropout_transform = [
-                A.CoarseDropout(
-                    max_holes=1, 
-                    max_width=int(self.hparams.img_size * 0.3), 
-                    max_height=int(self.hparams.img_size * 0.3), 
-                    mask_fill_value=0, p=0.5
-                )
-            ]
         self.train_transform = A.Compose(
             [
-                *coarse_dropout_transform,
                 RandAugment(self.hparams.randaugment_num_ops, self.hparams.randaugment_magnitude),
                 A.Normalize(
                     max_pixel_value=255.0,

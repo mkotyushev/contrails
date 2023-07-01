@@ -190,13 +190,13 @@ def augment_list():  # 16 oeprations and their ranges
         (Equalize, 0, 1),  # 7
         (Solarize, 0, 110),  # 8
         (Posterize, 4, 8),  # 9
-        # (Contrast, 0.1, 1.9),  # 10
+        (Contrast, 0.1, 1.9),  # 10
         (Color, 0.1, 1.9),  # 11
         (Brightness, 0.1, 1.9),  # 12
         (Sharpness, 0.1, 1.9),  # 13
-        # (Cutout, 0, 0.2),  # 14
+        (Cutout, 0, 0.2),  # 14
         # (SamplePairing(imgs), 0, 0.4),  # 15
-        # (Flip, 1, 1),
+        (Flip, 1, 1),
     ]
     return l
 
