@@ -1,0 +1,53 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - ${args}
+method: random
+parameters:
+  model.init_args.backbone_name:
+    distribution: constant
+    value: tf_efficientnet_b5.ns_jft_in1k
+  data.init_args.batch_size:
+    distribution: constant
+    value: 32
+  data.init_args.randaugment_num_ops:
+    distribution: categorical
+    values:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+  data.init_args.randaugment_magnitude:
+    distribution: categorical
+    values:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    - 15
+  data.init_args.coarse_dropout_size:
+    distribution: categorical
+    values:
+    - 0.1
+    - 0.2
+    - 0.3
