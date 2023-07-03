@@ -132,9 +132,9 @@ data:
     data_dirs_test: null
     num_folds: 5
     fold_index: 0
-    img_size: 256
+    img_size: 1024
     random_state: 0
-    randaugment_num_ops: 2
+    randaugment_num_ops: 3
     randaugment_magnitude: 9
     dataset_kwargs:
       band_ids: [11, 14, 15]
