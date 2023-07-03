@@ -1,8 +1,8 @@
 import logging
-import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import segmentation_models_pytorch as smp
 from copy import deepcopy
 from torch.nn import ModuleDict
 from lightning import LightningModule
@@ -16,10 +16,8 @@ from torchvision.ops import sigmoid_focal_loss
 from transformers import SegformerForSemanticSegmentation
 
 from src.data.transforms import Tta
-from src.model.smp import Unet, patch_first_conv, DiceLoss
 from src.utils.mechanic import mechanize
 from src.utils.utils import (
-    FeatureExtractorWrapper, 
     Eva02Wrapper,
     HfWrapper,
     PredictionTargetPreviewAgg, 
@@ -575,12 +573,11 @@ def build_segmentation_eva02(
             load_checkpoint_to_model_eva02(checkpoint, model)
     
     # Patch first conv from 3 to in_channels
-    patch_first_conv(
+    smp.encoders._utils.patch_first_conv(
         model, 
         new_in_channels=in_channels,
         default_in_channels=3, 
         pretrained=True,
-        conv_type=nn.Conv2d,
     )
     
     # Set grad checkpointing
@@ -590,7 +587,7 @@ def build_segmentation_eva02(
     return model
 
 
-def build_segmentation_timm(
+def build_segmentation_smp(
     backbone_name, 
     in_channels=1, 
     decoder_attention_type=None, 
@@ -599,45 +596,11 @@ def build_segmentation_timm(
     pretrained=True,
 ):
     """Build segmentation model."""
-    if backbone_name.startswith('tf_'):
-        backbone_param_key = backbone_name.split('_')[1]
-    else:
-        backbone_param_key = backbone_name.split('_')[0]
-    create_model_kwargs = {}
-    if backbone_param_key in ['swinv2', 'maxvit']:
-        create_model_kwargs['img_size'] = img_size
-
-    encoder = timm.create_model(
-        backbone_name, 
-        features_only=True,
-        pretrained=pretrained,
-        **create_model_kwargs,
-    )
-
-    patch_first_conv(
-        encoder, 
-        new_in_channels=in_channels,
-        default_in_channels=3, 
-        pretrained=pretrained,
-        conv_type=nn.Conv2d,
-    )
-    encoder.set_grad_checkpointing(grad_checkpointing)
-
-    encoder = FeatureExtractorWrapper(
-        encoder, 
-        format=backbone_name_to_params[backbone_param_key]['format']
-    )
-    model = Unet(
-        encoder=encoder,
-        encoder_channels=get_feature_channels(
-            encoder, 
-            input_shape=(in_channels, img_size, img_size),
-            output_format='NCHW',
-        ),
-        decoder_channels=backbone_name_to_params[backbone_param_key]['decoder_channels'],
-        classes=1,
-        upsampling=backbone_name_to_params[backbone_param_key]['upsampling'],
-        decoder_attention_type=decoder_attention_type,
+    model = smp.Unet(
+        encoder_name=backbone_name,     # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
+        encoder_weights="imagenet",     # use `imagenet` pre-trained weights for encoder initialization
+        in_channels=in_channels,                  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
+        classes=1,                      # model output channels (number of classes in your dataset)
     )
 
     return model
@@ -663,12 +626,11 @@ def build_segmentation_hf(
     model = HfWrapper(model)
 
     # Patch first conv from 3 to in_channels
-    patch_first_conv(
+    smp.encoders._utils.patch_first_conv(
         model, 
         new_in_channels=in_channels,
         default_in_channels=3, 
         pretrained=pretrained,
-        conv_type=nn.Conv2d,
     )
 
     return model
@@ -786,7 +748,7 @@ class SegmentationModule(BaseModule):
                 pretrained=pretrained,
             )
         else:
-            self.model = build_segmentation_timm(
+            self.model = build_segmentation_smp(
                 backbone_name, 
                 in_channels=in_channels,
                 decoder_attention_type=decoder_attention_type,
@@ -847,7 +809,7 @@ class SegmentationModule(BaseModule):
                     alpha=alpha,
                 )
             elif loss_name == 'dice':
-                loss_fn = DiceLoss(mode="binary", smooth=1.0)
+                loss_fn = smp.losses.DiceLoss(mode="binary", smooth=1.0)
                 loss_value = loss_fn(preds, batch['mask'])
             elif loss_name == 'gdl':
                 loss_value = generalized_dice_loss(

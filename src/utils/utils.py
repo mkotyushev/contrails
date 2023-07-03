@@ -94,11 +94,11 @@ class MyLightningCLISweep(MyLightningCLI):
                 'batch_size': 32,
                 'accumulate_grad_batches': 2,
             },
-            'tf_efficientnet_b5.ns_jft_in1k': {
+            'timm-efficientnet-b5': {
                 'batch_size': 64,
                 'accumulate_grad_batches': 1,
             },
-            'tf_efficientnet_b7.ns_jft_in1k': {
+            'timm-efficientnet-b7': {
                 'batch_size': 32,
                 'accumulate_grad_batches': 2,
             },
