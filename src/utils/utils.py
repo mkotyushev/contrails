@@ -58,7 +58,7 @@ class MyLightningCLISweep(MyLightningCLI):
     def before_instantiate_classes(self) -> None:
         """Implement to run some code before instantiating the classes."""
         backbone_name = self.config['fit']['model']['init_args']['backbone_name']
-        if backbone_name == 'tf_efficientnet_b5.ns_jft_in1k':
+        if backbone_name == 'timm-efficientnet-b5':
             # Special case to speedup very small model training
             device_to_batch_size_divider = {
                 'NVIDIA GeForce RTX 3090': 1,
