@@ -93,6 +93,11 @@ class ContrailsDatamodule(LightningDataModule):
         # Train augmentations
         self.train_transform = A.Compose(
             [
+                A.Resize(
+                    height=self.hparams.img_size,
+                    width=self.hparams.img_size,
+                    always_apply=True,
+                ),
                 RandAugment(self.hparams.randaugment_num_ops, self.hparams.randaugment_magnitude),
                 A.Normalize(
                     max_pixel_value=255.0,
