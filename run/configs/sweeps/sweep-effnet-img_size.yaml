@@ -12,7 +12,7 @@ parameters:
   model.init_args.backbone_name:
     distribution: categorical
     values: 
-    - tf_efficientnet_b5.ns_jft_in1k
+    - timm-efficientnet-b5
   data.init_args.img_size:
     distribution: categorical
     values:
