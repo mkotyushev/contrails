@@ -820,7 +820,6 @@ class EMACallback(Callback):
     def on_validation_end(self, trainer, pl_module):
         self.ema.update()
     
-    def on_train_end(self, trainer, pl_module):
         with self.ema.average_parameters():
             for cb in trainer.checkpoint_callbacks:
                 if (
@@ -828,6 +827,6 @@ class EMACallback(Callback):
                     not isinstance(cb, ModelCheckpointNoSave)
                 ):
                     trainer.save_checkpoint(
-                        os.path.join(cb.dirpath, f'ema-{self.decay}.pth'),
+                        os.path.join(cb.dirpath, f'ema-{self.decay}.ckpt'),
                         weights_only=False,  # to easily operate via PL API
                     )
