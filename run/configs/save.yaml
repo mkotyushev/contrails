@@ -1,0 +1,24 @@
+trainer:
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+    - class_path: src.utils.utils.EMACallback
+      init_args:
+        decay: 0.9
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        save_top_k: 1
+        monitor: v_dice
+        every_n_epochs: 1
+        mode: max
+        save_on_train_epoch_end: false
+        save_last: true
+    - class_path: src.utils.utils.ModelCheckpointNoSave
+      init_args:
+        save_top_k: 1
+        monitor: vl
+        every_n_epochs: 1
+        mode: min
+        save_on_train_epoch_end: false
+        save_last: true

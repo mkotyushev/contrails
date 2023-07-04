@@ -57,22 +57,12 @@ class MyLightningCLISweep(MyLightningCLI):
     """
     def before_instantiate_classes(self) -> None:
         """Implement to run some code before instantiating the classes."""
-        backbone_name = self.config['fit']['model']['init_args']['backbone_name']
-        if backbone_name == 'tf_efficientnet_b5.ns_jft_in1k':
-            # Special case to speedup very small model training
-            device_to_batch_size_divider = {
-                'NVIDIA GeForce RTX 3090': 1,
-                'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 1,
-                'Tesla T4': 1,
-                'Tesla V100-SXM2-16GB': 1,
-            }
-        else:
-            device_to_batch_size_divider = {
-                'NVIDIA GeForce RTX 3090': 1,
-                'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 2,
-                'Tesla T4': 2,
-                'Tesla V100-SXM2-16GB': 2,
-            }
+        device_to_batch_size_divider = {
+            'NVIDIA GeForce RTX 3090': 1,
+            'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 2,
+            'Tesla T4': 2,
+            'Tesla V100-SXM2-16GB': 2,
+        }
         backbone_name_to_batch_params_img_size_256 = {
             'convnextv2_base.fcmae_ft_in22k_in1k_384': {
                 'batch_size': 64,
@@ -95,8 +85,8 @@ class MyLightningCLISweep(MyLightningCLI):
                 'accumulate_grad_batches': 2,
             },
             'tf_efficientnet_b5.ns_jft_in1k': {
-                'batch_size': 64,
-                'accumulate_grad_batches': 1,
+                'batch_size': 128,
+                'accumulate_grad_batches': 0.5,  # so as calculated for 256px, for 1024 will be > 1
             },
             'tf_efficientnet_b7.ns_jft_in1k': {
                 'batch_size': 32,
