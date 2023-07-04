@@ -290,7 +290,7 @@ class ModelCheckpointNoSave(ModelCheckpoint):
 
         pl_module.logger.experiment.log(
             {
-                'best_epoch': self.best_epoch(), 
+                f'best_{self.monitor}_epoch': self.best_epoch(), 
                 f'best_{self.monitor}': self.best_model_score,
             }
         )
