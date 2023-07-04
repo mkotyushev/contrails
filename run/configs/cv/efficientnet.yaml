@@ -9,7 +9,7 @@ command:
   - --config
   - run/configs/save.yaml
   - ${args}
-method: random
+method: grid
 parameters:
   model.init_args.backbone_name:
     distribution: constant
