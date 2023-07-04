@@ -274,34 +274,23 @@ class ContrailsDatamodule(LightningDataModule):
                 'dirty': git.Repo(search_parent_directories=True).is_dirty(),
             }
             yaml.dump(cache_info, f, default_flow_style=False)
-
-    def calculate_is_mask_empty(self, record_dirs):
-        dataset = ContrailsDataset(
-            record_dirs=record_dirs, 
-            band_ids=[],
-            propagate_mask=False,
-            mmap=False,
-            transform=None,
-            shared_cache=None,
-        )
-        is_mask_empty = []
-        for item in dataset:
-            is_mask_empty.append(item['mask'].sum() == 0)
-        return is_mask_empty
     
     def split_train_val(self, dirs):
         # Load split info from file
-        df = pd.read_csv(self.hparams.split_info_path)
+        df_full = pd.read_csv(self.hparams.split_info_path)
+        df_full['path'] = df_full['path'].astype(str)
+        df_full['is_mask_empty'] = ~df_full['mask_sum_g0']
 
         # Merge with given dirs
-        df = pd.DataFrame(dirs, columns=['record_dir']).merge(
-            df, 
-            left_on='record_dir', 
-            right_on='record_dir', 
+        df_dirs = pd.DataFrame(dirs, columns=['path'])
+        df_dirs['path'] = df_dirs['path'].astype(str)
+        df = df_dirs.merge(
+            df_full, 
+            on='path', 
             how='left',
         )
 
-        is_mask_empty = ~df['mask_sum_g0']
+        is_mask_empty = df['is_mask_empty'].values
 
         if self.hparams.empty_mask_strategy == 'drop':
             dirs = [

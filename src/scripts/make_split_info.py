@@ -101,7 +101,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', type=Path, default='/workspace/data')
-    parser.add_argument('--output_path', type=str, default='/workspace/data/metadata.csv')
+    parser.add_argument('--data_dir', type=Path, default='../data')
+    parser.add_argument('--output_path', type=str, default='./split_info.csv')
     args = parser.parse_args()
     main(args)
