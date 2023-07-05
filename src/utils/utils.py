@@ -9,6 +9,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import joblib
+import contextlib
+import pandas as pd
+import string
+import sys
+
 from multiprocessing.managers import MakeProxyType, SyncManager
 from torch.utils.data import default_collate
 from weakref import proxy
@@ -21,7 +26,7 @@ from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.loggers import WandbLogger, TensorBoardLogger
 from timm.layers.format import nhwc_to, Format
 from torchvision.utils import make_grid
-from lightning.pytorch.callbacks import EarlyStopping, Callback, ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, Callback, ModelCheckpoint, BasePredictionWriter
 from torch_ema import ExponentialMovingAverage
 
 
@@ -832,3 +837,140 @@ class EMACallback(Callback):
                         os.path.join(cb.dirpath, f'ema-{self.decay}.ckpt'),
                         weights_only=False,  # to easily operate via PL API
                     )
+
+
+def rle_encode(x, fg_val=1):
+    """
+    Args:
+        x:  numpy array of shape (height, width), 1 - mask, 0 - background
+    Returns: run length encoding as list
+    """
+
+    dots = np.where(
+        x.T.flatten() == fg_val)[0]  # .T sets Fortran order down-then-right
+    run_lengths = []
+    prev = -2
+    for b in dots:
+        if b > prev + 1:
+            run_lengths.extend((b + 1, 0))
+        run_lengths[-1] += 1
+        prev = b
+    return run_lengths
+
+
+def list_to_string(x):
+    """
+    Converts list to a string representation
+    Empty list returns '-'
+    """
+    if x: # non-empty list
+        s = str(x).replace("[", "").replace("]", "").replace(",", "")
+    else:
+        s = '-'
+    return s
+
+
+def rle_decode(mask_rle, shape=(256, 256)):
+    '''
+    mask_rle: run-length as string formatted (start length)
+              empty predictions need to be encoded with '-'
+    shape: (height, width) of array to return 
+    Returns numpy array, 1 - mask, 0 - background
+    '''
+
+    img = np.zeros(shape[0]*shape[1], dtype=np.uint8)
+    if mask_rle != '-': 
+        s = mask_rle.split()
+        starts, lengths = [np.asarray(x, dtype=int) for x in (s[0:][::2], s[1:][::2])]
+        starts -= 1
+        ends = starts + lengths
+        for lo, hi in zip(starts, ends):
+            img[lo:hi] = 1
+    return img.reshape(shape, order='F')  # Needed to align to RLE direction
+
+
+class ContrailsPredictionWriterCsv(BasePredictionWriter):
+    def __init__(self, output_path: Path, threshold: float = 0.5):
+        super().__init__('batch_and_epoch')
+        self.output_path = output_path
+        assert 0 <= threshold <= 1
+        self.threshold = threshold
+        self.prediction_info = []
+
+    def write_on_batch_end(
+        self, trainer, pl_module, prediction, batch_indices, batch, batch_idx, dataloader_idx
+    ):
+        _, prediction = pl_module.extract_targets_and_probas_for_metric(prediction, batch)
+        prediction = prediction.cpu().numpy() > self.threshold
+        for i in range(prediction.shape[0]):
+            self.prediction_info.append(
+                {
+                    'record_id': int(batch['path'][i].split('/')[-1]),
+                    'encoded_pixels': list_to_string(rle_encode(prediction[i]))
+                }
+            )
+        
+    def write_on_epoch_end(self, trainer, pl_module, predictions, batch_indices):
+        df = pd.DataFrame(self.prediction_info)
+
+        # Sort by record_id
+        df = df.sort_values(by=['record_id'])
+
+        # Save to csv
+        df.to_csv(self.output_path, index=False)
+
+    
+# https://stackoverflow.com/questions/49555991/
+# can-i-create-a-local-numpy-random-seed
+@contextlib.contextmanager
+def temp_seed(seed):
+    state = np.random.get_state()
+    np.random.seed(seed)
+    try:
+        yield
+    finally:
+        np.random.set_state(state)
+
+
+class ContrailsPredictionWriterPng(BasePredictionWriter):
+    def __init__(self, output_dir: Path, postfix: str | None = None, img_size = None):
+        super().__init__('batch')
+        self.output_dir = output_dir
+        if postfix is None:
+            # Generate random alphanumeric string, seed is calculated from
+            # sys.argv to make it reproducible but different for different
+            # runs. Use numpy random
+            seed = hash(tuple(sys.argv)) % (2 ** 32)
+            with temp_seed(seed):
+                postfix = ''.join(
+                    np.random.choice(list(string.ascii_letters + string.digits))
+                    for _ in range(10)
+                )
+        self.postfix = postfix
+        logger.info(f'ContrailsPredictionWriterPng postfix: {postfix}')
+        self.img_size = img_size
+
+    def write_on_batch_end(
+        self, trainer, pl_module, prediction, batch_indices, batch, batch_idx, dataloader_idx
+    ):
+        _, prediction = pl_module.extract_targets_and_probas_for_metric(prediction, batch)
+
+        # Resize if needed
+        if self.img_size is not None and not (
+            self.img_size == prediction.shape[1] and 
+            self.img_size == prediction.shape[2]
+        ):
+            prediction = F.interpolate(
+                prediction.unsqueeze(1),
+                size=(self.img_size, self.img_size),
+                interpolation='bilinear',
+                align_corners=False,
+            ).squeeze(1)
+
+        # Conver to numpy
+        prediction = (prediction.cpu().numpy() * 255).astype(np.uint8)
+
+        # Save
+        for i in range(prediction.shape[0]):
+            out_path = self.output_dir / (batch['path'][i].split('/')[-1] + f'_{self.postfix}.png')
+            cv2.imwrite(str(out_path), prediction[i])

@@ -1,0 +1,11 @@
+trainer:
+  callbacks:
+    - class_path: src.utils.utils.ContrailsPredictionWriterCsv
+      init_args:
+        output_path: submission.csv
+        threshold: 0.5
+data:
+  init_args:
+    data_dirs: null
+    data_dirs_test:
+        - ../data/validation
