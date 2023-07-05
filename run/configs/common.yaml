@@ -134,6 +134,7 @@ data:
     fold_index: 0
     img_size: 256
     crop_size: 64
+    crop_strategy: random
     random_state: 0
     randaugment_num_ops: 3
     randaugment_magnitude: 9

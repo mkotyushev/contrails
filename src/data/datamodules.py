@@ -18,6 +18,7 @@ from src.data.transforms import (
     CopyPastePositive,
     CutMix,
     MixUp,
+    RandomCropVolumeInside2dMask,
 )
 from src.utils.utils import contrails_collate_fn
 from src.utils.randaugment import RandAugment
@@ -36,6 +37,7 @@ class ContrailsDatamodule(LightningDataModule):
         fold_index: Optional[int] = None,
         random_state: int = 0,
         crop_size: int = 64,
+        crop_strategy='random',
         img_size: int = 256,
         dataset_kwargs: Optional[dict] = None,
         randaugment_num_ops: int = 2,
@@ -96,13 +98,27 @@ class ContrailsDatamodule(LightningDataModule):
 
     def build_transforms(self) -> None:
         # Train augmentations
-        self.train_transform = A.Compose(
-            [
+        if self.hparams.crop_strategy == 'positive':
+            crop_transform = [
+                RandomCropVolumeInside2dMask(
+                    base_size=self.hparams.crop_size,
+                    scale=(0.9, 1.1),
+                    ratio=(0.9, 1.1),
+                    always_apply=True,
+                )
+            ]
+        elif self.hparams.crop_strategy == 'random':
+            crop_transform = [
                 A.RandomCrop(
                     height=self.hparams.crop_size,
                     width=self.hparams.crop_size,
                     always_apply=True,
-                ),
+                )
+            ]
+        
+        self.train_transform = A.Compose(
+            [
+                *crop_transform,
                 A.Resize(
                     height=self.hparams.img_size,
                     width=self.hparams.img_size,

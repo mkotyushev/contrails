@@ -2,7 +2,7 @@ import itertools
 import random
 import numpy as np
 import torch
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from torchvision.transforms import functional as F_torchvision
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
@@ -282,3 +282,86 @@ class Tta:
         preds = torch.nanmean(preds, dim=0)
         
         return preds
+
+
+class RandomCropVolumeInside2dMask:
+    """Crop a random part of the input.
+    """
+    def __init__(
+        self,
+        base_size: int,
+        scale: Tuple[float, float] = (1.0, 1.0),
+        ratio: Tuple[float, float] = (1.0, 1.0),
+        value: int = 0,
+        mask_value: int = 0,
+        always_apply=True,
+        p=1.0,
+    ):        
+        assert scale[0] > 0 and scale[1] > 0, f"scale should be positive. Got {scale}"
+        assert ratio[0] > 0 and ratio[1] > 0, f"ratio should be positive. Got {ratio}"
+        assert scale[0] <= scale[1], f"scale[0] should be less or equal than scale[1]. Got {scale}"
+        assert ratio[0] <= ratio[1], f"ratio[0] should be less or equal than ratio[1]. Got {ratio}"
+
+        self.base_size = base_size
+        self.scale = scale
+        self.ratio = ratio
+        self.value = value
+        self.mask_value = mask_value
+
+        self.always_apply = always_apply
+        self.p = p
+    
+    def __call__(self, *args, force_apply: bool = False, **kwargs) -> Dict[str, np.ndarray]:
+        # Toss a coin
+        if not force_apply and not self.always_apply and random.random() > self.p:
+            return kwargs
+        
+        # Get random scale and ratio
+        scale = random.uniform(self.scale[0], self.scale[1])
+        ratio = random.uniform(self.ratio[0], self.ratio[1])
+        
+        h_start, h_end = 0, kwargs['image'].shape[0]
+        w_start, w_end = 0, kwargs['image'].shape[1]
+        if self.base_size is not None:
+            # Get height and width
+            height = int(self.base_size * scale)
+            width = int(self.base_size * scale * ratio)       
+
+            # Get crop mask
+            crop_mask = kwargs['mask']  # (H, W)
+            
+            # Crop the mask to ensure that the crop is inside the mask
+            h_shift, w_shift = height // 2 + 1, width // 2 + 1
+            crop_mask = crop_mask[
+                h_shift:-h_shift,
+                w_shift:-w_shift,
+            ]
+
+            # Get indices of non-zero elements
+            nonzero_indices = np.nonzero(crop_mask)
+
+            # Get random index
+            random_index = random.randint(0, nonzero_indices[0].shape[0] - 1)
+            h_center, w_center = nonzero_indices[0][random_index], nonzero_indices[1][random_index]
+
+            # Shift indices back to compensate crop above
+            h_center += h_shift
+            w_center += w_shift
+
+            # Get crop indices
+            h_start = h_center - height // 2
+            h_end = h_start + height
+            w_start = w_center - width // 2
+            w_end = w_start + width
+
+            # Ensure that crop is inside the image
+            assert h_start >= 0 and h_end <= kwargs['image'].shape[0], \
+                f"h_start={h_start} and h_end={h_end} should be in [0, {kwargs['image'].shape[0]}]"
+            assert w_start >= 0 and w_end <= kwargs['image'].shape[1], \
+                f"w_start={w_start} and w_end={w_end} should be in [0, {kwargs['image'].shape[1]}]"
+
+        # Crop data
+        kwargs['image'] = kwargs['image'][h_start:h_end, w_start:w_end].copy()
+        kwargs['mask'] = kwargs['mask'][h_start:h_end, w_start:w_end].copy()
+
+        return kwargs
