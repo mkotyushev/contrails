@@ -727,9 +727,9 @@ def parse_loss_name(loss_name):
     return name_to_weight
 
 
-def patchify_batched(image, patch_size):
+def patchify_resize_batched(image, image_size, patch_size):
     # (B, C, H, W) -> (B * N_patches, C, H_patch, W_patch)
-    return image.unfold(
+    image = image.unfold(
         2, patch_size, patch_size
     ).unfold(
         3, patch_size, patch_size
@@ -738,6 +738,16 @@ def patchify_batched(image, patch_size):
     ).reshape(
         -1, image.shape[1], patch_size, patch_size
     )
+    
+    # Resize
+    image = F.interpolate(
+        image,
+        size=(image_size, image_size),
+        mode='bilinear',
+        align_corners=False,
+    )
+
+    return image
 
 
 class SegmentationModule(BaseModule):
@@ -952,15 +962,23 @@ class SegmentationModule(BaseModule):
         
         return total_loss
 
-    def crop_rebatch(self, batch, patch_size):
-        batch['image'] = patchify_batched(batch['image'], patch_size)
+    def crop_rebatch_resize(self, batch):
+        batch['image'] = patchify_resize_batched(
+            batch['image'], 
+            self.hparams.img_size, 
+            self.hparams.crop_size
+        )
         if 'mask' in batch:
-            batch['mask'] = patchify_batched(batch['mask'].unsqueeze(1), patch_size).squeeze(1)
+            batch['mask'] = patchify_resize_batched(
+                batch['mask'].unsqueeze(1), 
+                self.hparams.img_size, 
+                self.hparams.crop_size
+            ).squeeze(1)
         return batch
     
     def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
         if self.hparams.crop_size != self.hparams.img_size:
-            batch = self.crop_rebatch(batch, self.hparams.crop_size)
+            batch = self.crop_rebatch_resize(batch)
         loss_prefix = 'vl'
         total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
         assert dataloader_idx is None or dataloader_idx == 0, 'Only one val dataloader is supported.'
