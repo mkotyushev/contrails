@@ -727,6 +727,19 @@ def parse_loss_name(loss_name):
     return name_to_weight
 
 
+def patchify_batched(image, patch_size):
+    # (B, C, H, W) -> (B * N_patches, C, H_patch, W_patch)
+    return image.unfold(
+        2, patch_size, patch_size
+    ).unfold(
+        3, patch_size, patch_size
+    ).permute(
+        0, 2, 3, 1, 4, 5
+    ).reshape(
+        -1, image.shape[1], patch_size, patch_size
+    )
+
+
 class SegmentationModule(BaseModule):
     def __init__(
         self, 
@@ -749,7 +762,8 @@ class SegmentationModule(BaseModule):
         skip_nan: bool = False,
         prog_bar_names: Optional[list] = None,
         mechanize: bool = False,
-        img_size=256,
+        img_size = 256,
+        crop_size: int = 64,
         loss_name: str = 'bce=1.0',
         compile: bool = False,
         lr: float = 1e-3,
@@ -937,8 +951,16 @@ class SegmentationModule(BaseModule):
             return None
         
         return total_loss
+
+    def crop_rebatch(self, batch, patch_size):
+        batch['image'] = patchify_batched(batch['image'], patch_size)
+        if 'mask' in batch:
+            batch['mask'] = patchify_batched(batch['mask'], patch_size)
+        return batch
     
     def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
+        if self.hparams.crop_size != self.hparams.img_size:
+            batch = self.crop_rebatch(batch, self.hparams.crop_size)
         loss_prefix = 'vl'
         total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
         assert dataloader_idx is None or dataloader_idx == 0, 'Only one val dataloader is supported.'

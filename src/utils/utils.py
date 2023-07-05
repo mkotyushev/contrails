@@ -43,6 +43,10 @@ class MyLightningCLI(LightningCLI):
             "data.init_args.img_size", 
             "model.init_args.img_size",
         )
+        parser.link_arguments(
+            "data.init_args.crop_size", 
+            "model.init_args.crop_size",
+        )
 
 
 class MyLightningCLISweep(MyLightningCLI):

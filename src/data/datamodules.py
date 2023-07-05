@@ -35,6 +35,7 @@ class ContrailsDatamodule(LightningDataModule):
         num_folds: Optional[int] = 5,
         fold_index: Optional[int] = None,
         random_state: int = 0,
+        crop_size: int = 64,
         img_size: int = 256,
         dataset_kwargs: Optional[dict] = None,
         randaugment_num_ops: int = 2,
@@ -63,6 +64,10 @@ class ContrailsDatamodule(LightningDataModule):
         
         self.save_hyperparameters()
 
+        assert img_size >= crop_size, \
+            f"img_size ({img_size}) must be >= crop_size ({crop_size})"
+        assert img_size % crop_size == 0, \
+            f"img_size ({img_size}) must be divisible by crop_size ({crop_size})"
         assert (
             num_folds is None and fold_index is None or
             num_folds is not None and fold_index is not None
@@ -93,6 +98,11 @@ class ContrailsDatamodule(LightningDataModule):
         # Train augmentations
         self.train_transform = A.Compose(
             [
+                A.RandomCrop(
+                    height=self.hparams.crop_size,
+                    width=self.hparams.crop_size,
+                    always_apply=True,
+                ),
                 A.Resize(
                     height=self.hparams.img_size,
                     width=self.hparams.img_size,
