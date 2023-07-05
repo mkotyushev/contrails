@@ -963,7 +963,7 @@ class ContrailsPredictionWriterPng(BasePredictionWriter):
             prediction = F.interpolate(
                 prediction.unsqueeze(1),
                 size=(self.img_size, self.img_size),
-                interpolation='bilinear',
+                mode='bilinear',
                 align_corners=False,
             ).squeeze(1)
 
