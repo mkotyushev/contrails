@@ -328,7 +328,7 @@ class RandomCropVolumeInside2dMask:
             width = int(self.base_size * scale * ratio)       
 
             # Get crop mask
-            crop_mask = kwargs['mask']  # (H, W)
+            crop_mask = kwargs['mask'] > 0  # (H, W)
             
             # Crop the mask to ensure that the crop is inside the mask
             h_shift, w_shift = height // 2 + 1, width // 2 + 1
@@ -336,6 +336,9 @@ class RandomCropVolumeInside2dMask:
                 h_shift:-h_shift,
                 w_shift:-w_shift,
             ]
+
+            if crop_mask.sum() == 0:
+                crop_mask = np.ones_like(crop_mask)
 
             # Get indices of non-zero elements
             nonzero_indices = np.nonzero(crop_mask)
