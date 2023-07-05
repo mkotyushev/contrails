@@ -260,6 +260,8 @@ class TrainerWandb(Trainer):
 class ModelCheckpointNoSave(ModelCheckpoint):
     def best_epoch(self) -> int:
         # exmple: epoch=10-step=1452.ckpt
+        if not '=' in self.best_model_path:
+            return -1
         return int(self.best_model_path.split('=')[-2].split('-')[0])
     
     def ith_epoch_score(self, i: int) -> Optional[float]:
