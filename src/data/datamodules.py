@@ -361,9 +361,11 @@ class ContrailsDatamodule(LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader:
+        batch_size = max(
+            int(self.hparams.batch_size * (self.hparams.crop_size / self.hparams.img_size) ** 2), 1)
         val_dataloader = DataLoader(
             dataset=self.val_dataset, 
-            batch_size=self.hparams.batch_size, 
+            batch_size=batch_size, 
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             prefetch_factor=self.hparams.prefetch_factor,
