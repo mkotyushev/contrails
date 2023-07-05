@@ -9,10 +9,15 @@ command:
   - ${args}
 method: grid
 parameters:
+  model.init_args.library:
+    distribution: constant
+    value: hf
+  model.init_args.architecture:
+    distribution: constant
+    value: upernet
   model.init_args.backbone_name:
-    distribution: categorical
-    values: 
-    - timm-efficientnet-b5
+    distribution: constant
+    value: google/efficientnet-b5
   data.init_args.img_size:
     distribution: categorical
     values:

@@ -63,7 +63,7 @@ class MyLightningCLISweep(MyLightningCLI):
     def before_instantiate_classes(self) -> None:
         """Implement to run some code before instantiating the classes."""
         backbone_name = self.config['fit']['model']['init_args']['backbone_name']
-        if backbone_name == 'timm-efficientnet-b5':
+        if 'efficientnet-b5' in backbone_name:
             # Special case to speedup very small model training
             device_to_batch_size_divider = {
                 'NVIDIA GeForce RTX 3090': 1,
@@ -99,24 +99,25 @@ class MyLightningCLISweep(MyLightningCLI):
                 'batch_size': 32,
                 'accumulate_grad_batches': 2,
             },
-            'timm-efficientnet-b5': {
+            'google/efficientnet-b5': {
                 'batch_size': 64,
                 'accumulate_grad_batches': 1,
             },
-            'timm-efficientnet-b7': {
+            'google/efficientnet-b7': {
                 'batch_size': 32,
                 'accumulate_grad_batches': 2,
             },
         }
 
         # Force not deterministic training
+        deterministic_not_supported_archs = ['eva', 'upernet', 'segformer']
         if (
-            self.config['fit']['model']['init_args']['backbone_name'].startswith('nvidia') or
-            self.config['fit']['model']['init_args']['backbone_name'].startswith('eva02')
+            self.config['fit']['model']['init_args']['architecture'] in deterministic_not_supported_archs
         ):
             if self.config['fit']['trainer']['deterministic']:
                 logger.warning(
-                    'Deterministic training is not supported with NVIDIA or Eva02 models. '
+                    f'Deterministic training is not supported for {deterministic_not_supported_archs} archs. '
+                    f"Got {self.config['fit']['model']['init_args']['architecture']}. "
                     'Setting `deterministic=False`.'
                 )
             self.config['fit']['trainer']['deterministic'] = False
