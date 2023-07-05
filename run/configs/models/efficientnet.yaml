@@ -1,10 +1,10 @@
 trainer:
   deterministic: true
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 16
 model:
   init_args:
     backbone_name: timm-efficientnet-b7
     compile: true
 data:
   init_args:
-    batch_size: 32  # muuuch slower for 64
+    batch_size: 4

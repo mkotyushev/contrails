@@ -6,6 +6,6 @@ contrails/
 pretrained/
 pipe/
 cache/
+preds/
 .venv/
-*.csv
 *.log

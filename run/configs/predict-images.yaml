@@ -1,0 +1,10 @@
+trainer:
+  callbacks:
+    - class_path: src.utils.utils.ContrailsPredictionWriterPng
+      init_args:
+        output_dir: preds
+data:
+  init_args:
+    data_dirs: null
+    data_dirs_test:
+      - ../data/validation  # for local experiments

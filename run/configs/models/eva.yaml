@@ -1,10 +1,10 @@
 trainer:
   deterministic: false
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 32
 model:
   init_args:
-    backbone_name: eva02_B_ade_seg_upernet_sz512
+    backbone_name: eva02_L_ade_seg_upernet_sz512
     compile: false
 data:
   init_args:
-    batch_size: 64
+    batch_size: 2

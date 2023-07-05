@@ -2,13 +2,13 @@ import hashlib
 import logging
 import albumentations as A
 import multiprocessing as mp
-import joblib
+import pandas as pd
 import yaml
 import git
 from pathlib import Path
 from typing import List, Literal, Optional
 from lightning import LightningDataModule
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 from torch.utils.data import DataLoader
 from albumentations.pytorch import ToTensorV2
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
@@ -48,7 +48,7 @@ class ContrailsDatamodule(LightningDataModule):
         use_online_val_test: bool = False,
         cache_dir: Optional[Path] = None,
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
-        split_info_dir: Optional[Path] = None,
+        split_info_path: Optional[Path] = None,
     ):
         super().__init__()
 
@@ -164,32 +164,12 @@ class ContrailsDatamodule(LightningDataModule):
                 dirs += [path for path in sorted(data_dir.iterdir()) if path.is_dir()]
             
             if self.hparams.fold_index is not None:
-                fold_split_info_path = self.hparams.split_info_dir / f'fold_{self.hparams.fold_index}.joblib'
-                if self.hparams.split_info_dir is not None and fold_split_info_path.exists():
-                    (
-                        train_record_dirs, \
-                        val_record_dirs, 
-                        train_is_mask_empty, 
-                        _,
-                    ) = joblib.load(fold_split_info_path)
-                else:
-                    (
-                        train_record_dirs, \
-                        val_record_dirs, 
-                        train_is_mask_empty, 
-                        _,
-                    ) = self.split_train_val(dirs)
-                    if self.hparams.split_info_dir is not None:
-                        self.hparams.split_info_dir.mkdir(parents=True, exist_ok=True)
-                        joblib.dump(
-                            (
-                                train_record_dirs, 
-                                val_record_dirs, 
-                                train_is_mask_empty, 
-                                _,
-                            ), 
-                            fold_split_info_path,
-                        )
+                (
+                    train_record_dirs, \
+                    val_record_dirs, 
+                    train_is_mask_empty, 
+                    _,
+                ) = self.split_train_val(dirs)
             else:
                 train_record_dirs = dirs
 
@@ -299,24 +279,23 @@ class ContrailsDatamodule(LightningDataModule):
                 'dirty': git.Repo(search_parent_directories=True).is_dirty(),
             }
             yaml.dump(cache_info, f, default_flow_style=False)
-
-    def calculate_is_mask_empty(self, record_dirs):
-        dataset = ContrailsDataset(
-            record_dirs=record_dirs, 
-            band_ids=[],
-            propagate_mask=False,
-            mmap=False,
-            transform=None,
-            shared_cache=None,
-        )
-        is_mask_empty = []
-        for item in dataset:
-            is_mask_empty.append(item['mask'].sum() == 0)
-        return is_mask_empty
     
     def split_train_val(self, dirs):
-        # Calculate for each record is mask is empty
-        is_mask_empty = self.calculate_is_mask_empty(dirs)
+        # Load split info from file
+        df_full = pd.read_csv(self.hparams.split_info_path)
+        df_full['path'] = df_full['path'].astype(str)
+        df_full['is_mask_empty'] = ~df_full['mask_sum_g0']
+
+        # Merge with given dirs
+        df_dirs = pd.DataFrame(dirs, columns=['path'])
+        df_dirs['path'] = df_dirs['path'].astype(str)
+        df = df_dirs.merge(
+            df_full, 
+            on='path', 
+            how='left',
+        )
+
+        is_mask_empty = df['is_mask_empty'].values
 
         if self.hparams.empty_mask_strategy == 'drop':
             dirs = [
@@ -326,13 +305,20 @@ class ContrailsDatamodule(LightningDataModule):
             is_mask_empty = [False] * len(dirs)
 
         # Split train dirs to train and val
-        # stratified by mask is empty
-        kfold = StratifiedKFold(
+        # stratified by mask_sum_qcut_code
+        # and grouped by spatial set_id
+        kfold = StratifiedGroupKFold(
             n_splits=self.hparams.num_folds,
             shuffle=True,
             random_state=self.hparams.random_state,
         )
-        for i, (train_index, val_index) in enumerate(kfold.split(dirs, is_mask_empty)):
+        for i, (train_index, val_index) in enumerate(
+            kfold.split(
+                df, 
+                df['mask_sum_qcut_code'], 
+                df['set_id_spatial']
+            )
+        ):
             if i == self.hparams.fold_index:
                 train_record_dirs = [dirs[i] for i in train_index]
                 val_record_dirs = [dirs[i] for i in val_index]
