@@ -76,8 +76,9 @@ trainer:
 model:
   class_path: src.model.modules.SegmentationModule
   init_args:
-    decoder_attention_type: null
     in_channels: 3
+    library: smp
+    architecture: unet
     backbone_name: null
     log_preview_every_n_epochs: 1
     tta_params: null

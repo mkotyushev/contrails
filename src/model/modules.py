@@ -13,7 +13,10 @@ from torchmetrics.classification import BinaryF1Score
 from torchmetrics import Metric
 from lightning.pytorch.utilities import grad_norm
 from torchvision.ops import sigmoid_focal_loss
-from transformers import SegformerForSemanticSegmentation
+from transformers import (
+    UperNetForSemanticSegmentation,
+    SegformerForSemanticSegmentation, 
+)
 
 from src.data.transforms import Tta
 from src.utils.mechanic import mechanize
@@ -464,11 +467,14 @@ eva02_backbone_name_to_params = {
 }
 def build_segmentation_eva02(
     backbone_name,
+    architecture,
     in_channels, 
     pretrained=True,  # on inference loaded by lightning
     grad_checkpointing=False,
     img_size=384,
 ):
+    assert architecture == 'upernet'
+
     import sys
 
     sys.path.insert(0, '/workspace/contrails/lib/EVA/EVA-02/seg')
@@ -589,25 +595,28 @@ def build_segmentation_eva02(
 
 def build_segmentation_smp(
     backbone_name, 
+    architecture,
     in_channels=1, 
-    decoder_attention_type=None, 
-    img_size=256,
-    grad_checkpointing=False,
     pretrained=True,
 ):
     """Build segmentation model."""
-    model = smp.Unet(
-        encoder_name=backbone_name,     # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
-        encoder_weights="imagenet",     # use `imagenet` pre-trained weights for encoder initialization
-        in_channels=in_channels,                  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
-        classes=1,                      # model output channels (number of classes in your dataset)
-    )
+    encoder_weights = "imagenet" if pretrained else None
+    if architecture == 'unet':
+        model = smp.Unet(
+            encoder_name=backbone_name,     # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
+            encoder_weights=encoder_weights,     # use `imagenet` pre-trained weights for encoder initialization
+            in_channels=in_channels,                  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
+            classes=1,                      # model output channels (number of classes in your dataset)
+        )
+    else:
+        raise ValueError(f'unknown architecture {architecture} for SMP')
 
     return model
 
 
 def build_segmentation_hf(
     backbone_name, 
+    architecture='upernet',
     in_channels=1, 
     grad_checkpointing=False,
     pretrained=True,
@@ -617,21 +626,34 @@ def build_segmentation_hf(
             'grad_checkpointing is not supported for nvidia models, '
             'setting grad_checkpointing=False.'
         )
-    model = SegformerForSemanticSegmentation.from_pretrained(
-        backbone_name,
-        num_labels=1,
-        ignore_mismatched_sizes=False,
-        num_channels=3,
-    )
-    model = HfWrapper(model)
+    if architecture == 'segformer':
+        model = SegformerForSemanticSegmentation.from_pretrained(
+            backbone_name,
+            num_labels=1,
+            ignore_mismatched_sizes=False,
+            num_channels=3,
+        )
+    elif architecture == 'upernet':
+        model = UperNetForSemanticSegmentation.from_pretrained(
+            backbone_name,
+            num_labels=1,
+            ignore_mismatched_sizes=True,
+            # TODO: fix auxiliary head breaking some models (e. g. effnet)
+            use_auxiliary_head=False,
+        )
+    else:
+        raise ValueError(f'unknown architecture {architecture} for HF')
+    
+    model = HfWrapper(model, scale_factor=4 if architecture == 'segformer' else 1)
 
     # Patch first conv from 3 to in_channels
-    smp.encoders._utils.patch_first_conv(
-        model, 
-        new_in_channels=in_channels,
-        default_in_channels=3, 
-        pretrained=pretrained,
-    )
+    if in_channels != 3:
+        smp.encoders._utils.patch_first_conv(
+            model, 
+            new_in_channels=in_channels,
+            default_in_channels=3, 
+            pretrained=pretrained,
+        )
 
     return model
 
@@ -692,8 +714,9 @@ def parse_loss_name(loss_name):
 class SegmentationModule(BaseModule):
     def __init__(
         self, 
-        decoder_attention_type: Literal[None, 'scse'] = None,
-        backbone_name: str = 'swinv2_tiny_window8_256.ms_in1k',
+        library: Literal['smp', 'hf', 'eva'] = 'smp',
+        architecture: Literal['unet', 'upernet', 'segformer'] = 'unet',
+        backbone_name: str = 'timm-efficientnet-b5',
         in_channels: int = 6,
         log_preview_every_n_epochs: int = 10,
         tta_params: Dict[str, Any] = None,
@@ -732,30 +755,32 @@ class SegmentationModule(BaseModule):
 
         torch.set_float32_matmul_precision('medium')
 
-        if backbone_name.startswith('eva02'):
+        if library == 'eva':
             self.model = build_segmentation_eva02(
+                architecture=architecture,
                 in_channels=in_channels, 
                 backbone_name=backbone_name,
                 pretrained=pretrained,
                 grad_checkpointing=grad_checkpointing,
                 img_size=img_size,
             )
-        elif backbone_name.startswith('nvidia'):
+        elif library == 'hf':
             self.model = build_segmentation_hf(
-                backbone_name, 
+                backbone_name=backbone_name, 
+                architecture=architecture,
                 in_channels=in_channels,
                 grad_checkpointing=grad_checkpointing,
+                pretrained=pretrained,
+            )
+        elif library == 'smp':
+            self.model = build_segmentation_smp(
+                backbone_name=backbone_name, 
+                architecture=architecture,
+                in_channels=in_channels,
                 pretrained=pretrained,
             )
         else:
-            self.model = build_segmentation_smp(
-                backbone_name, 
-                in_channels=in_channels,
-                decoder_attention_type=decoder_attention_type,
-                img_size=img_size,
-                grad_checkpointing=grad_checkpointing,
-                pretrained=pretrained,
-            )
+            raise ValueError(f'unknown library {library}')
 
         if compile:
             self.model = torch.compile(self.model)
