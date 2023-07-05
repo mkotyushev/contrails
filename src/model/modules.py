@@ -955,7 +955,7 @@ class SegmentationModule(BaseModule):
     def crop_rebatch(self, batch, patch_size):
         batch['image'] = patchify_batched(batch['image'], patch_size)
         if 'mask' in batch:
-            batch['mask'] = patchify_batched(batch['mask'], patch_size)
+            batch['mask'] = patchify_batched(batch['mask'].unsqueeze(1), patch_size).squeeze(1)
         return batch
     
     def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
