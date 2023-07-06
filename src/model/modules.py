@@ -647,7 +647,10 @@ def build_segmentation_hf(
             model = UperNetForSemanticSegmentation.from_pretrained(
                 backbone_name,
                 num_labels=1,
-                ignore_mismatched_sizes=False,
+                # carefully check 'size mismatch' warnings in logs 
+                # it should consist only decode_head and auxiliary_head
+                # missmatch due to different number of classes
+                ignore_mismatched_sizes=True,
             )
         else:
             # Pretrained backbone with random initialization as per 
