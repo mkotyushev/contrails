@@ -10,7 +10,8 @@ logging.basicConfig(
     format = '[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s'
 )
 
-if LOGLEVEL == 'DEBUG':
+TD_VERBOSE = os.environ.get('TD_VERBOSE', '0')
+if TD_VERBOSE != '0':
     torch._dynamo.config.verbose = True
 
 from src.utils.utils import MyLightningCLI, TrainerWandb
