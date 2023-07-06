@@ -123,8 +123,7 @@ class MyLightningCLISweep(MyLightningCLI):
 
         # Force not compile
         if (
-            self.config['fit']['model']['init_args']['backbone_name'].startswith('convnext') or
-            self.config['fit']['model']['init_args']['backbone_name'].startswith('eva02')
+            self.config['fit']['model']['init_args']['backbone_name'].startswith('convnext')
         ):
             if self.config['fit']['model']['init_args']['compile']:
                 logger.warning(
