@@ -87,7 +87,7 @@ class MyLightningCLISweep(MyLightningCLI):
                 'batch_size': 64,
                 'accumulate_grad_batches': 1,
             },
-            'maxvit_rmlp_base_rw_384.sw_in12k_ft_in1k': {
+            'maxvit_rmlp_base_rw_384': {
                 'batch_size': 32,
                 'accumulate_grad_batches': 2,
             },
@@ -108,6 +108,22 @@ class MyLightningCLISweep(MyLightningCLI):
                 'accumulate_grad_batches': 2,
             },
             'timm-efficientnet-b5': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+            'facebook/convnextv2-base-22k-224': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+            'facebook/convnextv2-base-22k-384': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+            'tf_efficientnet_b5': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+            'tf_efficientnetv2_l': {
                 'batch_size': 64,
                 'accumulate_grad_batches': 1,
             },

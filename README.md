@@ -12,12 +12,29 @@ Build & install `apex` via following command:
 # Lib, archetecture and backbones
 
 ### HF + Upernet
+
+Native, full model pretrained:
 + 'openmmlab/upernet-convnext-base'
-+ 'google/efficientnet-b5' with no aux head
+
+Native, special cases
 + 'facebook/convnextv2-base-22k-224' with no aux head
-+ 'facebook/convnext-tiny-224'
++ 'facebook/convnextv2-base-22k-384' with no aux head
 
-+- 'timm/efficientnet_b5.sw_in12k_ft_in1k' safetensor error (does not have a metadata)
-+- 'timm/convnextv2_base.fcmae_ft_in22k_in1k_384' safetensor error (does not have a metadata)
+Timm backbone:
++ 'maxvit_rmlp_base_rw_384'
 
-- 'timm/maxvit_base_tf_512.in21k_ft_in1k' not implemented
+Timm backbone (requires patching `transformers`, see below):
++ 'tf_efficientnet_b5'
++ 'tf_efficientnetv2_l'
+
+# Library modifications
+
+TODO: need to be moved to `lib` folder and installed on docker build.
+
+1. `transformers`: 
+- /root/miniconda3/envs/contrails/lib/python3.10/site-packages/transformers/models/upernet/modeling_upernet.py: `if self.auxiliary_head is not None` when initializing weights
+- /root/miniconda3/envs/contrails/lib/python3.10/site-packages/transformers/models/timm_backbone/modeling_timm_backbone.py: `if hasattr(self._backbone, "return_layers")` before acessing `self._backbone.return_layers`
+
+# Known issues
+- efficientnet models tend to significantely slow down for large batch size (e. g. 64 for b5)
+- deteministic training is not available for most of the models due to lack of backward kernels for some operations

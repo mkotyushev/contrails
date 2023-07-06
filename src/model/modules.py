@@ -14,6 +14,11 @@ from torchmetrics import Metric
 from lightning.pytorch.utilities import grad_norm
 from torchvision.ops import sigmoid_focal_loss
 from transformers import (
+    TimmBackbone,
+    TimmBackboneConfig,
+    ConvNextV2Backbone,
+    ConvNextV2Config,
+    UperNetConfig,
     UperNetForSemanticSegmentation,
     SegformerForSemanticSegmentation, 
 )
@@ -628,6 +633,7 @@ def build_segmentation_hf(
             'grad_checkpointing is not supported for nvidia models, '
             'setting grad_checkpointing=False.'
         )
+    # TODO: fix pretrained not used
     if architecture == 'segformer':
         model = SegformerForSemanticSegmentation.from_pretrained(
             backbone_name,
@@ -636,13 +642,45 @@ def build_segmentation_hf(
             num_channels=3,
         )
     elif architecture == 'upernet':
-        model = UperNetForSemanticSegmentation.from_pretrained(
-            backbone_name,
-            num_labels=1,
-            ignore_mismatched_sizes=True,
-            # TODO: fix auxiliary head breaking some models (e. g. effnet)
-            use_auxiliary_head=False,
-        )
+        if 'openmmlab' in backbone_name:
+            # Native full OpenMMlab models
+            model = UperNetForSemanticSegmentation.from_pretrained(
+                backbone_name,
+                num_labels=1,
+                ignore_mismatched_sizes=False,
+            )
+        else:
+            # Pretrained backbone with random initialization as per 
+            # https://huggingface.co/docs/transformers/main/en/model_doc/upernet#usage
+            if backbone_name.startswith('facebook/convnextv2'):
+                # Well supported by upernet
+                backbone_config = ConvNextV2Config.from_pretrained(
+                    backbone_name,
+                    out_features=["stage1", "stage2", "stage3", "stage4"],
+                )
+                backbone = ConvNextV2Backbone.from_pretrained(
+                    backbone_name,
+                    out_features=["stage1", "stage2", "stage3", "stage4"],
+                )
+            else:
+                backbone_config = TimmBackboneConfig(
+                    backbone_name,
+                    use_pretrained_backbone=True,
+                    out_indices=[0, 1, 2, 3],
+                )
+                backbone = TimmBackbone(
+                    backbone_config,
+                )
+
+            config = UperNetConfig(
+                backbone_config=backbone_config, 
+                num_labels=1, 
+                use_auxiliary_head=False,
+            )
+            model = UperNetForSemanticSegmentation(config)
+
+            # Load pretrained backbone explicitly
+            model.backbone.load_state_dict(backbone.state_dict())
     else:
         raise ValueError(f'unknown architecture {architecture} for HF')
     
