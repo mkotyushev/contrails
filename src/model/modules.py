@@ -472,6 +472,7 @@ def build_segmentation_eva02(
     pretrained=True,  # on inference loaded by lightning
     grad_checkpointing=False,
     img_size=384,
+    xattn=False,
 ):
     assert architecture == 'upernet'
 
@@ -549,6 +550,7 @@ def build_segmentation_eva02(
     cfg = Config.fromfile(cfg_path)
     cfg.model.decode_head.num_classes = 1
     cfg.model.auxiliary_head.num_classes = 1
+    cfg.model.backbone.xattn = xattn
 
     # Build model & load checkpoint
     if pretrained:
@@ -763,6 +765,7 @@ class SegmentationModule(BaseModule):
                 pretrained=pretrained,
                 grad_checkpointing=grad_checkpointing,
                 img_size=img_size,
+                xattn=not compile,  # xattn is not supported by torch.compile
             )
         elif library == 'hf':
             self.model = build_segmentation_hf(
