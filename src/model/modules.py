@@ -900,6 +900,24 @@ class SegmentationModule(BaseModule):
             prog_bar=True,
             batch_size=batch['image'].shape[0],
         )
+
+        # Handle nan in loss
+        has_nan = False
+        if torch.isnan(total_loss):
+            has_nan = True
+            logger.warning(
+                f'Loss is nan at epoch {self.current_epoch} '
+                f'step {self.global_step}.'
+            )
+        for loss_name, loss in losses.items():
+            if torch.isnan(loss):
+                has_nan = True
+                logger.warning(
+                    f'Loss {loss_name} is nan at epoch {self.current_epoch} '
+                    f'step {self.global_step}.'
+                )
+        if has_nan:
+            return None
         
         y, y_pred = self.extract_targets_and_probas_for_metric(preds, batch)
         for metric_name, metric in self.metrics['t_metrics'].items():
@@ -920,24 +938,6 @@ class SegmentationModule(BaseModule):
                     batch_size=batch['image'].shape[0],
                 )
                 metric.reset()
-
-        # Handle nan in loss
-        has_nan = False
-        if torch.isnan(total_loss):
-            has_nan = True
-            logger.warning(
-                f'Loss is nan at epoch {self.current_epoch} '
-                f'step {self.global_step}.'
-            )
-        for loss_name, loss in losses.items():
-            if torch.isnan(loss):
-                has_nan = True
-                logger.warning(
-                    f'Loss {loss_name} is nan at epoch {self.current_epoch} '
-                    f'step {self.global_step}.'
-                )
-        if has_nan:
-            return None
         
         return total_loss
     
