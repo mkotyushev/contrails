@@ -1,0 +1,28 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - ${args}
+method: grid
+parameters:
+  data.init_args.img_size:
+    distribution: constant
+    value: 256
+  model.init_args.library:
+    distribution: constant
+    value: hf
+  model.init_args.architecture:
+    distribution: constant
+    value: upernet
+  model.init_args.backbone_name:
+    distribution: categorical
+    values: 
+    - openmmlab/upernet-convnext-base
+    - facebook/convnextv2-base-22k-384
+    - tf_efficientnet_b5
+    - tf_efficientnetv2_m
+
