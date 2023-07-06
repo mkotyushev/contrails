@@ -98,12 +98,12 @@ class MyLightningCLISweep(MyLightningCLI):
                 'accumulate_grad_batches': 2,
             },
             'facebook/convnextv2-base-22k-224': {
-                'batch_size': 32,
-                'accumulate_grad_batches': 2,
+                'batch_size': 16,
+                'accumulate_grad_batches': 4,
             },
             'facebook/convnextv2-base-22k-384': {
-                'batch_size': 32,
-                'accumulate_grad_batches': 2,
+                'batch_size': 16,
+                'accumulate_grad_batches': 4,
             },
             'tf_efficientnet_b5': {
                 'batch_size': 16,
