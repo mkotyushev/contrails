@@ -1,0 +1,32 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - ${args}
+method: grid
+parameters:
+  data.init_args.img_size:
+    distribution: constant
+    value: 256
+  model.init_args.library:
+    distribution: constant
+    value: smp
+  model.init_args.architecture:
+    distribution: constant
+    value: unet
+  model.init_args.backbone_name:
+    distribution: constant
+    value: tu-tf_efficientnet_b5
+  model.init_args.loss_name:
+    distribution: categorical
+    values:
+    - bce=0.9+dice=0.1+sdf=0.1
+    - bce=0.9+dice=0.1+sdf=0.3
+    - bce=0.9+dice=0.1+sdf=0.5
+    - bce=0.9+dice=0.1+sdf=0.7
+    - bce=0.9+dice=0.1+sdf=0.9
+
