@@ -1,10 +1,12 @@
 trainer:
-  deterministic: true
-  accumulate_grad_batches: 8
+  deterministic: false
+  accumulate_grad_batches: 1
 model:
   init_args:
-    backbone_name: tf_efficientnet_b5.ns_jft_in1k
+    library: hf
+    architecture: upernet
+    backbone_name: google/efficientnet-b5
     compile: true
 data:
   init_args:
-    batch_size: 8
+    batch_size: 64
