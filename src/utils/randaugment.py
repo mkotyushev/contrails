@@ -17,8 +17,13 @@ def affine_transform(pair, affine_params):
     img, mask = pair
     img = img.transform(img.size, Image.AFFINE, affine_params,
                         resample=Image.BILINEAR, fillcolor=fillcolor)
-    mask = mask.transform(mask.size, Image.AFFINE, affine_params,
-                          resample=Image.NEAREST, fillcolor=fillmask)
+    if isinstance(mask, list):
+        for i in range(len(mask)):
+            mask[i] = mask[i].transform(mask[i].size, Image.AFFINE, affine_params,
+                                        resample=Image.NEAREST, fillcolor=fillmask)
+    else:
+        mask = mask.transform(mask.size, Image.AFFINE, affine_params,
+                            resample=Image.NEAREST, fillcolor=fillmask)
     return img, mask
 
 
@@ -74,7 +79,11 @@ def Rotate(pair, v):  # [-30, 30]
         v = -v
     img, mask = pair
     img = img.rotate(v, fillcolor=fillcolor)
-    mask = mask.rotate(v, resample=Image.NEAREST, fillcolor=fillmask)
+    if isinstance(mask, list):
+        for i in range(len(mask)):
+            mask[i] = mask[i].rotate(v, resample=Image.NEAREST, fillcolor=fillmask)
+    else:
+        mask = mask.rotate(v, resample=Image.NEAREST, fillcolor=fillmask)
     return img, mask
 
 
@@ -95,7 +104,13 @@ def Equalize(pair, _):
 
 def Flip(pair, _):  # not from the paper
     img, mask = pair
-    return ImageOps.mirror(img), ImageOps.mirror(mask)
+    img = ImageOps.mirror(img)
+    if isinstance(mask, list):
+        for i in range(len(mask)):
+            mask[i] = ImageOps.mirror(mask[i])
+    else:
+        mask = ImageOps.mirror(mask)
+    return img, mask
 
 
 def Solarize(pair, v):  # [0, 256]
@@ -254,22 +269,25 @@ class RandAugment:
         self.augment_list = augment_list()
 
     def __call__(self, *args, force_apply: bool = False, **kwargs):
-        image, mask = kwargs['image'], kwargs['mask']
+        image, masks = kwargs['image'], kwargs['masks']
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image)
-        if isinstance(mask, np.ndarray):
-            mask = Image.fromarray(mask)
         
-        pair = image, mask
+        for i in range(len(masks)):
+            if isinstance(masks[i], np.ndarray):
+                masks[i] = Image.fromarray(masks[i])
+        
+        pair = image, masks
         ops = random.choices(self.augment_list, k=self.n)
         for op, minval, maxval in ops:
             val = (float(self.m) / 30) * float(maxval - minval) + minval
             pair = op(pair, val)
         
-        image, mask = pair
+        image, masks = pair
         image = np.array(image)
-        mask = np.array(mask)
+        for i in range(len(masks)):
+            masks[i] = np.array(masks[i])
         
-        kwargs['image'], kwargs['mask'] = image, mask
+        kwargs['image'], kwargs['masks'] = image, masks
         
         return kwargs
