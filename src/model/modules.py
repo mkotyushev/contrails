@@ -729,6 +729,12 @@ def parse_loss_name(loss_name):
     return name_to_weight
 
 
+def sdf_loss(input, target):
+    """SDF loss."""
+    input = torch.sigmoid(input)
+    return torch.mean(input * target)
+
+
 class SegmentationModule(BaseModule):
     def __init__(
         self, 
@@ -820,7 +826,7 @@ class SegmentationModule(BaseModule):
         """Compute losses and predictions."""
         preds = self.tta(batch['image'])
         
-        if 'mask' not in batch:
+        if 'mask_0' not in batch:
             return None, None, preds
 
         losses = {}
@@ -831,7 +837,7 @@ class SegmentationModule(BaseModule):
                     pos_weight = torch.tensor(self.hparams.pos_weight)
                 loss_value = F.binary_cross_entropy_with_logits(
                     preds.squeeze(1).float().flatten(),
-                    batch['mask'].float().flatten(),
+                    batch['mask_0'].float().flatten(),
                     reduction='mean',
                     pos_weight=pos_weight,
                 )
@@ -845,7 +851,7 @@ class SegmentationModule(BaseModule):
                     alpha = self.hparams.pos_weight / (1.0 + self.hparams.pos_weight)
                 loss_value = sigmoid_focal_loss(
                     preds.squeeze(1).float().flatten(),
-                    batch['mask'].float().flatten(),
+                    batch['mask_0'].float().flatten(),
                     reduction='mean',
                     alpha=alpha,
                 )
@@ -855,7 +861,13 @@ class SegmentationModule(BaseModule):
             elif loss_name == 'gdl':
                 loss_value = generalized_dice_loss(
                     preds.squeeze(1).float(),
-                    batch['mask'].float(),
+                    batch['mask_0'].float(),
+                )
+            elif loss_name == 'sdf':
+                assert 'mask_1' in batch, 'mask_1 (sdf) is required for sdf loss'
+                loss_value = sdf_loss(
+                    preds.squeeze(1).float().flatten(),
+                    batch['mask_1'].float().flatten(),
                 )
             
             losses[loss_name] = loss_value * loss_weight
@@ -1064,9 +1076,9 @@ class SegmentationModule(BaseModule):
         y = None
         y_pred = torch.sigmoid(preds.detach().float()).squeeze(1)
         
-        if 'mask' in batch:
+        if 'mask_0' in batch:
             y = torch.isclose(
-                batch['mask'].detach(), 
+                batch['mask_0'].detach(), 
                 torch.tensor(1.0, device=y_pred.device)
             ).long()
             y, y_pred = self.remove_nans(y, y_pred)

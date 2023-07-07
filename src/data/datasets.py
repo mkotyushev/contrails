@@ -1,9 +1,10 @@
-from copy import deepcopy
 import logging
 import numpy as np
 from pathlib import Path
+from copy import deepcopy
 from typing import Any, List, Optional, Tuple, Literal
-
+from scipy.ndimage import distance_transform_edt
+from skimage import segmentation as skimage_seg
 
 BANDS = (8, 9, 10, 11, 12, 13, 14, 15, 16)
 LABELED_TIME_INDEX = 4
@@ -149,6 +150,27 @@ def get_images(data, type_='all', quantize=False, precomputed=False):
         images = images.astype(np.uint8)
         
     return images
+
+
+def compute_sdf1_1(posmask):
+    """
+    compute the signed distance map of binary mask
+    input: segmentation, shape = (batch_size, class, x, y, z)
+    output: the Signed Distance Map (SDM) 
+    sdm(x) = 0; x in segmentation boundary
+             -inf|x-y|; x in segmentation
+             +inf|x-y|; x out of segmentation
+
+    """
+    negmask = 1 - posmask
+    boundary = skimage_seg.find_boundaries(posmask, mode='inner').astype(np.uint8)
+    posdis = distance_transform_edt(posmask)
+    negdis = distance_transform_edt(negmask)
+    sdf = np.zeros_like(posmask, dtype=np.float32)
+    sdf[posmask > 0] = -posdis[posmask > 0] / np.max(posdis[posmask > 0])
+    sdf[negmask > 0] = negdis[negmask > 0] / np.max(negdis[negmask > 0])
+    sdf[boundary > 0] = 0
+    return sdf
 
 
 class ContrailsDataset:
@@ -335,11 +357,17 @@ class ContrailsDataset:
             image = image[..., time_idx]  # (H, W, C, T) -> (H, W, C)
         if mask is not None:
             mask = mask[..., time_idx]  # (H, W, T) -> (H, W)
+
+        # Caclulate sdf
+        sdf = None
+        if mask is not None:
+            sdf = compute_sdf1_1(mask)
+            sdf = ((sdf + 1) / 2 * 255.0).astype(np.uint8)  # (H, W)
         
         # Prepare output
         output = {
             'image': image,  # (H, W, C)
-            'mask': mask,  # (H, W)
+            'masks': [mask, sdf],  # (H, W)
             'path': str(record_dir),
         }
         
@@ -408,10 +436,16 @@ class ContrailsDataset:
                 if not (k.endswith('1') and k[:-1] in output)
             }
 
-        # Convert mask from uint8 range [0..255] 
-        # to float range [0, 1]
-        if output['mask'] is not None:
-            output['mask'] = output['mask'].astype(np.float32) / 255.0
+        # Convert masks from uint8 range [0..255] 
+        # to float
+        for i in range(len(output['masks'])):
+            if output['masks'][i] is not None:
+                if i == 0:  # mask, range [0, 1]
+                    output['masks'][i] = output['masks'][i].astype(np.float32) / 255.0
+                elif i == 1:  # sdf, range [-1, 1]
+                    output['masks'][i] = output['masks'][i].astype(np.float32) / 255.0 * 2 - 1.0
+                else:
+                    raise ValueError(f'There should be only mask and sdf for now')
 
         # TODO: check which way is better:
         # - cpp and mix then single transform

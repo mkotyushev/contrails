@@ -727,7 +727,12 @@ def contrails_collate_fn(batch):
         for k, v in sample.items():
             if v is None:
                 continue
-            output[k].append(v)
+
+            if k == 'masks':
+                for i, mask in enumerate(v):
+                    output[f'mask_{i}'].append(mask)
+            else:
+                output[k].append(v)
     
     for k, v in output.items():
         if isinstance(v[0], str) or v[0].dtype == object:
