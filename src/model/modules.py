@@ -885,7 +885,7 @@ class SegmentationModule(BaseModule):
                 )
             elif loss_name == 'dice':
                 loss_fn = smp.losses.DiceLoss(mode="binary", smooth=1.0)
-                loss_value = loss_fn(preds, batch['mask'])
+                loss_value = loss_fn(preds, batch['mask_0'])
             elif loss_name == 'gdl':
                 loss_value = generalized_dice_loss(
                     preds.squeeze(1).float(),
