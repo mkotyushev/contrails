@@ -864,7 +864,7 @@ class SegmentationModule(BaseModule):
         if 'mask_0' not in batch or ('sdf' in self.hparams.loss_name and 'mask_1' not in batch):
             return None, None, preds
         
-        if 'aux' in loss_name:
+        if 'aux' in self.hparams.loss_name:
             preds_aux = self.tta.model.forward_aux(batch['image'])
 
         losses = {}
