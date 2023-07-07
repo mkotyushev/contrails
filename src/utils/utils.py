@@ -710,16 +710,21 @@ class Eva02Wrapper(nn.Module):
 
 
 class HfWrapper(nn.Module):
-    def __init__(self, model, scale_factor=4):
+    def __init__(self, model, scale_factor=4, aux=False):
         super().__init__()
         self.model = model
         self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor)
+        self.aux = aux
     
-    def forward(self, x):
-        x = self.model(x)['logits']
+    def forward(self, input):
+        x = self.model(input)['logits']
         # Upsample to original size
         x = self.upsampling(x)
-        return x
+
+        if self.aux:
+            return x, self.forward_aux(input)
+        else:
+            return x
     
     def forward_aux(self, x):
         # From UperNetForSemanticSegmentation.forward

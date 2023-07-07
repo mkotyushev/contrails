@@ -21,10 +21,8 @@ parameters:
   model.init_args.loss_name:
     distribution: categorical
     values:
-    - bce=0.9+dice=0.1
+    - sdf=1.0
+    - bce=0.1+sdf=0.9
+    - bce=0.5+sdf=0.5
+    - bce=0.9+sdf=0.1
     - bce=0.9+dice=0.1+sdf=0.1
-    - bce=0.9+dice=0.1+sdf=0.3
-    - bce=0.9+dice=0.1+sdf=0.5
-    - bce=0.9+dice=0.1+sdf=0.7
-    - bce=0.9+dice=0.1+sdf=0.9
-

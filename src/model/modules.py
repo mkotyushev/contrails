@@ -605,15 +605,25 @@ def build_segmentation_smp(
     architecture,
     in_channels=1, 
     pretrained=True,
+    use_auxiliary_head=False,
 ):
     """Build segmentation model."""
     encoder_weights = "imagenet" if pretrained else None
     if architecture == 'unet':
+        aux_params = None
+        if use_auxiliary_head:
+            aux_params = dict(
+                pooling='avg',        # one of 'avg', 'max'
+                dropout=0.5,          # dropout ratio, default is None
+                activation=None,      # activation function, default is None
+                classes=1,            # define number of output labels
+            )
         model = smp.Unet(
-            encoder_name=backbone_name,     # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
+            encoder_name=backbone_name,          # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
             encoder_weights=encoder_weights,     # use `imagenet` pre-trained weights for encoder initialization
-            in_channels=in_channels,                  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
-            classes=1,                      # model output channels (number of classes in your dataset)
+            in_channels=in_channels,             # model input channels (1 for gray-scale images, 3 for RGB, etc.)
+            classes=1,                           # model output channels (number of classes in your dataset)
+            aux_params=aux_params,
         )
     else:
         raise ValueError(f'unknown architecture {architecture} for SMP')
@@ -688,7 +698,11 @@ def build_segmentation_hf(
     else:
         raise ValueError(f'unknown architecture {architecture} for HF')
     
-    model = HfWrapper(model, scale_factor=4 if architecture == 'segformer' else 1)
+    model = HfWrapper(
+        model, 
+        scale_factor=4 if architecture == 'segformer' else 1,
+        aux=use_auxiliary_head,
+    )
 
     # Patch first conv from 3 to in_channels
     if in_channels != 3:
@@ -755,10 +769,21 @@ def parse_loss_name(loss_name):
     return name_to_weight
 
 
-def sdf_loss(input, target):
+# https://arxiv.org/pdf/1912.03849.pdf
+def sdf_loss(input, target_sdf, target, lambda_=10, k=1500):
     """SDF loss."""
-    input = torch.sigmoid(input)
-    return torch.mean(input * target)
+    # Regression
+    prod = input * target_sdf
+    l_product = torch.mean(- prod / (input ** 2 + target_sdf ** 2 + prod + 1e-6))
+    l_1 = torch.mean(torch.abs(input - target_sdf))
+    
+    # Classification
+    input = torch.sigmoid(input / k)
+    loss_fn = smp.losses.DiceLoss(mode="binary", smooth=1.0)
+    l_dice = loss_fn(input, target)
+
+    loss = l_dice + lambda_ * (l_product + l_1)
+    return loss
 
 
 def l2_loss(input, target):
@@ -835,6 +860,7 @@ class SegmentationModule(BaseModule):
                 architecture=architecture,
                 in_channels=in_channels,
                 pretrained=pretrained,
+                use_auxiliary_head='aux' in loss_name,
             )
         else:
             raise ValueError(f'unknown library {library}')
@@ -859,13 +885,15 @@ class SegmentationModule(BaseModule):
 
     def compute_loss_preds(self, batch, *args, **kwargs):
         """Compute losses and predictions."""
-        preds = self.tta(batch['image'])
+        preds_aux = None
+        if 'aux' in self.hparams.loss_name:
+            preds, preds_aux = self.tta(batch['image'])
+            print(preds_aux.shape)
+        else:
+            preds = self.tta(batch['image'])
         
         if 'mask_0' not in batch or ('sdf' in self.hparams.loss_name and 'mask_1' not in batch):
             return None, None, preds
-        
-        if 'aux' in self.hparams.loss_name:
-            preds_aux = self.tta.model.forward_aux(batch['image'])
 
         losses = {}
         for loss_name, loss_weight in parse_loss_name(self.hparams.loss_name).items():
@@ -904,8 +932,11 @@ class SegmentationModule(BaseModule):
             elif loss_name == 'sdf':
                 assert 'mask_1' in batch, 'mask_1 (sdf) is required for sdf loss'
                 loss_value = sdf_loss(
-                    preds.squeeze(1).float().flatten(),
-                    batch['mask_1'].float().flatten(),
+                    preds,
+                    batch['mask_1'],
+                    batch['mask_0'],
+                    lambda_=10,
+                    k=1500,
                 )
             elif loss_name == 'aux_sdf_l2':
                 assert 'mask_1' in batch, 'mask_1 (sdf) is required for aux_sdf_l2 loss'
