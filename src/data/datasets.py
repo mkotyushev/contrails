@@ -167,9 +167,18 @@ def compute_sdf1_1(posmask):
     posdis = distance_transform_edt(posmask)
     negdis = distance_transform_edt(negmask)
     sdf = np.zeros_like(posmask, dtype=np.float32)
-    sdf[posmask > 0] = -posdis[posmask > 0] / np.max(posdis[posmask > 0])
-    sdf[negmask > 0] = negdis[negmask > 0] / np.max(negdis[negmask > 0])
-    sdf[boundary > 0] = 0
+
+    posmask = posmask > 0
+    negmask = negmask > 0
+    boundary = boundary > 0
+    
+    if posmask.sum() > 0:
+        sdf[posmask] = -posdis[posmask] / np.max(posdis[posmask])
+    if negmask.sum() > 0:
+        sdf[negmask] = negdis[negmask] / np.max(negdis[negmask])
+    if boundary.sum() > 0:
+        sdf[boundary] = 0
+    
     return sdf
 
 
