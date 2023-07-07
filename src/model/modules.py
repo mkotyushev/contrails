@@ -627,6 +627,7 @@ def build_segmentation_hf(
     in_channels=1, 
     grad_checkpointing=False,
     pretrained=True,
+    use_auxiliary_head=False,
 ):
     if grad_checkpointing:
         logger.warning(
@@ -678,7 +679,7 @@ def build_segmentation_hf(
             config = UperNetConfig(
                 backbone_config=backbone_config, 
                 num_labels=1, 
-                use_auxiliary_head=False,
+                use_auxiliary_head=use_auxiliary_head,
             )
             model = UperNetForSemanticSegmentation(config)
 
@@ -760,6 +761,11 @@ def sdf_loss(input, target):
     return torch.mean(input * target)
 
 
+def l2_loss(input, target):
+    """L2 loss."""
+    return torch.mean((input - target) ** 2)
+
+
 class SegmentationModule(BaseModule):
     def __init__(
         self, 
@@ -821,6 +827,7 @@ class SegmentationModule(BaseModule):
                 in_channels=in_channels,
                 grad_checkpointing=grad_checkpointing,
                 pretrained=pretrained,
+                use_auxiliary_head='aux' in loss_name,
             )
         elif library == 'smp':
             self.model = build_segmentation_smp(
@@ -854,8 +861,11 @@ class SegmentationModule(BaseModule):
         """Compute losses and predictions."""
         preds = self.tta(batch['image'])
         
-        if 'mask_0' not in batch:
+        if 'mask_0' not in batch or ('sdf' in self.hparams.loss_name and 'mask_1' not in batch):
             return None, None, preds
+        
+        if 'aux' in loss_name:
+            preds_aux = self.tta.model.forward_aux(batch['image'])
 
         losses = {}
         for loss_name, loss_weight in parse_loss_name(self.hparams.loss_name).items():
@@ -895,6 +905,12 @@ class SegmentationModule(BaseModule):
                 assert 'mask_1' in batch, 'mask_1 (sdf) is required for sdf loss'
                 loss_value = sdf_loss(
                     preds.squeeze(1).float().flatten(),
+                    batch['mask_1'].float().flatten(),
+                )
+            elif loss_name == 'aux_sdf_l2':
+                assert 'mask_1' in batch, 'mask_1 (sdf) is required for aux_sdf_l2 loss'
+                loss_value = l2_loss(
+                    preds_aux.squeeze(1).float().flatten(),
                     batch['mask_1'].float().flatten(),
                 )
             

@@ -720,6 +720,19 @@ class HfWrapper(nn.Module):
         # Upsample to original size
         x = self.upsampling(x)
         return x
+    
+    def forward_aux(self, x):
+        # From UperNetForSemanticSegmentation.forward
+        # TODO: fix so that no need to calculate features twice
+        outputs = self.model.backbone.forward_with_filtered_kwargs(
+            x, output_hidden_states=None, output_attentions=None
+        )
+        features = outputs.feature_maps
+        auxiliary_logits = self.model.auxiliary_head(features)
+        auxiliary_logits = nn.functional.interpolate(
+            auxiliary_logits, size=x.shape[2:], mode="bilinear", align_corners=False
+        )
+        return auxiliary_logits
 
 
 def get_feature_channels(model, input_shape, output_format='NHWC'):
