@@ -9,9 +9,6 @@ command:
   - ${args}
 method: grid
 parameters:
-  data.init_args.img_size:
-    distribution: constant
-    value: 256
   model.init_args.library:
     distribution: constant
     value: smp
