@@ -85,6 +85,10 @@ class MyLightningCLISweep(MyLightningCLI):
                 'batch_size': 64,
                 'accumulate_grad_batches': 1,
             },
+            'tu-tf_efficientnet_b5': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
 
             # HF + Segformer
             'nvidia/mit-b5': {
