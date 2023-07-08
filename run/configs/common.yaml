@@ -137,6 +137,7 @@ data:
     random_state: 0
     randaugment_num_ops: 3
     randaugment_magnitude: 9
+    scale_factor: 1
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: weighted
