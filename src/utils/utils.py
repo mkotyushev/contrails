@@ -118,8 +118,12 @@ class MyLightningCLISweep(MyLightningCLI):
                 'accumulate_grad_batches': 4,
             },
             'tf_efficientnetv2_m': {
-                'batch_size': 16,
-                'accumulate_grad_batches': 4,
+                'batch_size': 32,
+                'accumulate_grad_batches': 2,
+            },
+            'tf_efficientnetv2_xl': {
+                'batch_size': 32,
+                'accumulate_grad_batches': 2,
             },
             'maxvit_rmlp_base_rw_384': {
                 'batch_size': 16,
