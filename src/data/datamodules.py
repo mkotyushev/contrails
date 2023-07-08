@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import math
 import albumentations as A
 import multiprocessing as mp
 import pandas as pd
@@ -363,9 +364,11 @@ class ContrailsDatamodule(LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader:
+        batch_size = math.floor(self.hparams.batch_size // self.hparams.scale_factor ** 2)
+        batch_size = max(batch_size, 1)
         val_dataloader = DataLoader(
             dataset=self.val_dataset, 
-            batch_size=self.hparams.batch_size, 
+            batch_size=batch_size, 
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             prefetch_factor=self.hparams.prefetch_factor,
@@ -378,9 +381,11 @@ class ContrailsDatamodule(LightningDataModule):
 
     def test_dataloader(self) -> DataLoader:
         assert self.test_dataset is not None, "test dataset is not defined"
+        batch_size = math.floor(self.hparams.batch_size // self.hparams.scale_factor ** 2)
+        batch_size = max(batch_size, 1)
         return DataLoader(
             dataset=self.test_dataset, 
-            batch_size=self.hparams.batch_size, 
+            batch_size=batch_size, 
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             prefetch_factor=self.hparams.prefetch_factor,
