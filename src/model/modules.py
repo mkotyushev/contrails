@@ -21,6 +21,8 @@ from transformers import (
     UperNetConfig,
     UperNetForSemanticSegmentation,
     SegformerForSemanticSegmentation, 
+    Mask2FormerConfig,
+    Mask2FormerForUniversalSegmentation,
 )
 
 from src.data.transforms import Tta
@@ -684,10 +686,24 @@ def build_segmentation_hf(
 
             # Load pretrained backbone explicitly
             model.backbone.load_state_dict(backbone.state_dict())
+    elif architecture == 'mask2former':
+        # Only native full mask2former models
+        # or swin backbone (does not make sense to use it separately)
+        assert 'facebook/mask2former' in backbone_name, \
+            f'backbone_name must start with facebook/mask2former, got {backbone_name}'
+        model = Mask2FormerForUniversalSegmentation.from_pretrained(
+            backbone_name,
+            num_labels=1,
+            # num_queries=1,  # TODO check if num_queries=1 better than default
+            # carefully check 'size mismatch' warnings in logs 
+            # it should consist only decode_head and auxiliary_head
+            # missmatch due to different number of classes
+            ignore_mismatched_sizes=True,
+        )
     else:
         raise ValueError(f'unknown architecture {architecture} for HF')
     
-    model = HfWrapper(model, scale_factor=4 if architecture == 'segformer' else 1)
+    model = HfWrapper(model, scale_factor=4 if architecture in ['segformer', 'mask2former'] else 1)
 
     # Patch first conv from 3 to in_channels
     if in_channels != 3:
@@ -758,7 +774,7 @@ class SegmentationModule(BaseModule):
     def __init__(
         self, 
         library: Literal['smp', 'hf', 'eva'] = 'smp',
-        architecture: Literal['unet', 'upernet', 'segformer'] = 'unet',
+        architecture: Literal['unet', 'upernet', 'segformer', 'mask2former'] = 'unet',
         backbone_name: str = 'timm-efficientnet-b5',
         in_channels: int = 6,
         log_preview_every_n_epochs: int = 10,

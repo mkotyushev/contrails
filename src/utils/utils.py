@@ -717,12 +717,19 @@ class HfWrapper(nn.Module):
     def __init__(self, model, scale_factor=4):
         super().__init__()
         self.model = model
-        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor)
+        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor) if scale_factor != 1 else nn.Identity()
     
     def forward(self, x):
-        x = self.model(x)['logits']
+        x = self.model(x)
+        
+        if 'logits' in x:
+            x = x['logits']
+        else:  # mask2former
+            x = x.masks_queries_logits.sum(1, keepdim=True)
+        
         # Upsample to original size
         x = self.upsampling(x)
+        
         return x
 
 
