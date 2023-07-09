@@ -725,7 +725,7 @@ class HfWrapper(nn.Module):
         if 'logits' in x:
             x = x['logits']
         else:  # mask2former
-            x = x.masks_queries_logits.sum(1, keepdim=True)
+            x = x.masks_queries_logits.max(1, keepdim=True)
         
         # Upsample to original size
         x = self.upsampling(x)
