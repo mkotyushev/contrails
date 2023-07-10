@@ -8,5 +8,6 @@ pipe/
 cache/
 preds/
 weights/
+artifacts/
 .venv/
 *.log
