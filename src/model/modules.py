@@ -7,7 +7,7 @@ import segmentation_models_pytorch as smp
 from copy import deepcopy
 from torch.nn import ModuleDict
 from lightning import LightningModule
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Mapping, Optional, Union
 from torch import Tensor
 from lightning.pytorch.cli import instantiate_class
 from torchmetrics.classification import BinaryF1Score 
@@ -1184,3 +1184,15 @@ class SegmentationModule(BaseModule):
             y, y_pred = self.remove_nans(y, y_pred)
         
         return y, y_pred
+    
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
+        if not self.hparams.compile and all(['_orig_mod' in k for k in state_dict.keys()]):
+            # Trained with compile=True, load with compile=False
+            state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
+        elif self.hparams.compile and not all(['_orig_mod' in k for k in state_dict.keys()]):
+            # Trained with compile=False, load with compile=True
+            state_dict = {
+                '.'.join([k.split('.')[0]] + ['_orig_mod'] + [k.split('.')[1:]])
+                : v for k, v in state_dict.items()
+            }
+        return super().load_state_dict(state_dict, strict)
