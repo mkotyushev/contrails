@@ -5,7 +5,7 @@ wandb/
 contrails/
 pretrained/
 pipe/
-cache/
+cache*/
 preds/
 weights/
 artifacts/
