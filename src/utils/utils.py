@@ -131,6 +131,12 @@ class MyLightningCLISweep(MyLightningCLI):
                 'batch_size': 16,
                 'accumulate_grad_batches': 4,
             },
+
+            # mmseg
+            'internimage-b': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            }
         }
 
         # Force img_size for maxvit models
@@ -699,7 +705,7 @@ class FeatureExtractorWrapper(nn.Module):
         return features
 
 
-class Eva02Wrapper(nn.Module):
+class UpsampleWrapper(nn.Module):
     def __init__(self, model, scale_factor=4):
         super().__init__()
         self.model = model

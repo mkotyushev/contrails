@@ -25,19 +25,29 @@ from transformers import (
     Mask2FormerConfig,
     Mask2FormerForUniversalSegmentation,
 )
+from mmseg.models import build_segmentor
+from mmengine.runner import load_checkpoint
+from mmengine.runner.checkpoint import _load_checkpoint, _load_checkpoint_to_model
+from mmengine.config import Config
 
 from src.model.smp_old import UnetOld
 from src.data.transforms import Tta
 from src.utils.mechanic import mechanize
 from src.utils.utils import (
     FeatureExtractorWrapper, 
-    Eva02Wrapper,
+    UpsampleWrapper,
     HfWrapper,
     PredictionTargetPreviewAgg, 
     PredictionTargetPreviewGrid, 
     get_feature_channels, 
     state_norm,
 )
+
+# To register custom models
+import sys
+sys.path.insert(0, '/workspace/contrails/lib/InternImage/segmentation')
+from src.model import internimage
+from src.model import eva2
 
 
 logger = logging.getLogger(__name__)
@@ -486,15 +496,6 @@ def build_segmentation_eva02(
 ):
     assert architecture == 'upernet'
 
-    import sys
-
-    sys.path.insert(0, '/workspace/contrails/lib/EVA/EVA-02/seg')
-    from backbone import eva2
-    from mmseg.models import build_segmentor
-    from mmengine.runner import load_checkpoint
-    from mmengine.runner.checkpoint import _load_checkpoint, _load_checkpoint_to_model
-    from mmengine.config import Config
-
     def load_checkpoint_to_model_eva02(checkpoint, model):
         """Modify checkpoint for different img_size & load it to model.
 
@@ -600,7 +601,51 @@ def build_segmentation_eva02(
     
     # Set grad checkpointing
     model.use_checkpoint = grad_checkpointing
-    model = Eva02Wrapper(model, scale_factor=4)
+    model = UpsampleWrapper(model, scale_factor=4)
+
+    return model
+
+
+mmseg_params = {
+    ('upernet', 'internimage-b'): {
+        'cfg_path': './lib/InternImage/segmentation/configs/ade20k/upernet_internimage_b_512_160k_ade20k.py',
+    }
+}
+def build_segmentation_mmseg(
+    backbone_name,
+    architecture,
+    in_channels, 
+    grad_checkpointing=False,
+):
+    assert (architecture, backbone_name) in mmseg_params, \
+        f'unknown architecture {architecture} and ' \
+        f'backbone {backbone_name} combination for mmseg'
+    
+    # Get config
+    cfg_path = mmseg_params[(architecture, backbone_name)]['cfg_path']
+    cfg = Config.fromfile(cfg_path)
+    cfg.model.decode_head.num_classes = 1
+    cfg.model.auxiliary_head.num_classes = 1
+
+    # Simply load checkpoint with mmseg built-in function
+    model = build_segmentor(
+        cfg.model,
+        train_cfg=cfg.get('train_cfg'),
+        test_cfg=cfg.get('test_cfg'),
+    )
+
+    # Patch first conv from 3 to in_channels
+    if in_channels != 3:
+        smp.encoders._utils.patch_first_conv(
+            model, 
+            new_in_channels=in_channels,
+            default_in_channels=3, 
+            pretrained=True,
+        )
+    
+    # Set grad checkpointing
+    model.use_checkpoint = grad_checkpointing
+    model = UpsampleWrapper(model, scale_factor=4)
 
     return model
 
@@ -831,7 +876,7 @@ def parse_loss_name(loss_name):
 class SegmentationModule(BaseModule):
     def __init__(
         self, 
-        library: Literal['smp_old', 'smp', 'hf', 'eva'] = 'smp',
+        library: Literal['smp_old', 'smp', 'hf', 'eva', 'mmseg'] = 'smp',
         architecture: Literal['unet', 'upernet', 'segformer', 'mask2former'] = 'unet',
         backbone_name: str = 'timm-efficientnet-b5',
         in_channels: int = 6,
@@ -906,6 +951,13 @@ class SegmentationModule(BaseModule):
                 img_size=img_size,
                 grad_checkpointing=grad_checkpointing,
                 pretrained=pretrained,
+            )
+        elif library == 'mmseg':
+            self.model = build_segmentation_mmseg(
+                backbone_name, 
+                architecture=architecture,
+                in_channels=in_channels,
+                grad_checkpointing=grad_checkpointing,
             )
         else:
             raise ValueError(f'unknown library {library}')

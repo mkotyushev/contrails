@@ -1,0 +1,12 @@
+trainer:
+  deterministic: false
+  accumulate_grad_batches: 2
+model:
+  init_args:
+    library: mmseg
+    architecture: upernet
+    backbone_name: internimage-b
+    compile: true
+data:
+  init_args:
+    batch_size: 32
