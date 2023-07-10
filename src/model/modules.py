@@ -1105,6 +1105,8 @@ class SegmentationModule(BaseModule):
         return total_loss
     
     def predict_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
+        # Prevent storing predictions in _PredictionLoop._predict_step
+        self.trainer.predict_loop.return_predictions = False
         _, _, preds = self.compute_loss_preds(batch, **kwargs)
         return preds
 
