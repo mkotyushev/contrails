@@ -53,6 +53,7 @@ class ContrailsDatamodule(LightningDataModule):
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
         split_info_path: Optional[Path] = None,
         scale_factor: int = 1,
+        to_predict: Literal['test', 'val', 'train'] = 'test',
     ):
         super().__init__()
 
@@ -166,6 +167,11 @@ class ContrailsDatamodule(LightningDataModule):
                 ToTensorV2(),
             ],
         )
+
+        if self.hparams.to_predict == 'train':
+            self.train_transform = self.val_transform
+            self.train_transform_cpp = None
+            self.train_transform_mix = None
 
     def setup(self, stage: str = None) -> None:
         self.build_transforms()
@@ -358,7 +364,10 @@ class ContrailsDatamodule(LightningDataModule):
         return train_record_dirs, val_record_dirs, train_is_mask_empty, val_is_mask_empty
 
     def train_dataloader(self) -> DataLoader:
-        sampler, shuffle = None, True      
+        sampler, shuffle, drop_last = None, True, True
+        if self.hparams.to_predict == 'train':
+            shuffle = False
+
         return DataLoader(
             dataset=self.train_dataset, 
             batch_size=self.hparams.batch_size, 
@@ -369,7 +378,7 @@ class ContrailsDatamodule(LightningDataModule):
             collate_fn=self.collate_fn,
             sampler=sampler,
             shuffle=shuffle,
-            drop_last=True,  # for compiling
+            drop_last=drop_last,  # for compiling
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -404,11 +413,9 @@ class ContrailsDatamodule(LightningDataModule):
         )
 
     def predict_dataloader(self) -> DataLoader:
-        if self.test_dataset is None:
-            logger.warning(
-                "test dataset is not defined, "
-                "using val dataset for prediction instead"
-            )
+        if self.hparams.to_predict == 'train':
+            return self.train_dataloader()
+        elif self.hparams.to_predict == 'val':
             return self.val_dataloader()
-        else:
+        elif self.hparams.to_predict == 'test':
             return self.test_dataloader()
