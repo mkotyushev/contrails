@@ -1,6 +1,6 @@
 trainer:
   deterministic: false
-  accumulate_grad_batches: 2
+  accumulate_grad_batches: 4
 model:
   init_args:
     library: mmseg
@@ -9,4 +9,4 @@ model:
     compile: true
 data:
   init_args:
-    batch_size: 32
+    batch_size: 16
