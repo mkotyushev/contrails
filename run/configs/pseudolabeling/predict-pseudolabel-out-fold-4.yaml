@@ -1,0 +1,21 @@
+trainer:
+  callbacks:
+    - class_path: src.utils.utils.ContrailsPredictionWriterPng
+      init_args:
+        output_dir: ./pseudolabels/out-of-fold/images
+        img_size: 256
+        threshold: 0.75
+        postfix: "fold_4"
+data:
+  init_args:
+    disable_cache: true  # cache not really used so not wasting time to load it
+    cache_dir: null
+    to_predict: val
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: null
+      use_not_labeled: true
+      pseudolabels_path: null
+      conversion_type: ash
+      quantize: true
+      stats_precomputed: false
