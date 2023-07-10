@@ -268,15 +268,16 @@ class ContrailsDataset:
             ) > 0  # (H, W, 1, N)
 
         pseudolabel_masks = None
+        record_id = record_dir.name
         if (
             self.mask_type is not None and
             self.use_not_labeled and 
             self.pseudolabels_path is not None and 
-            (record_dir / 'pseudolabel_masks.npy').exists()
+            (self.pseudolabels_path / f'{record_id}.npy').exists()
         ):
             pseudolabel_masks = np.load(
-                record_dir / 'pseudolabel_masks.npy'
-            )[..., time_idx]
+                self.pseudolabels_path / f'{record_id}.npy'
+            )[..., time_idx]  # (H, W, 1)
         
         # Get single mask
         mask = None
