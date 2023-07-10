@@ -6,7 +6,7 @@ model:
     library: mmseg
     architecture: upernet
     backbone_name: internimage-b
-    compile: false
+    compile: true
 data:
   init_args:
     batch_size: 32
