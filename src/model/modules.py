@@ -609,6 +609,7 @@ def build_segmentation_eva02(
 mmseg_params = {
     ('upernet', 'internimage-b'): {
         'cfg_path': './lib/InternImage/segmentation/configs/ade20k/upernet_internimage_b_512_160k_ade20k.py',
+        'ckpt_path': 'https://huggingface.co/OpenGVLab/InternImage/resolve/main/upernet_internimage_b_512_160k_ade20k.pth',
     }
 }
 def build_segmentation_mmseg(
@@ -627,11 +628,18 @@ def build_segmentation_mmseg(
     cfg.model.decode_head.num_classes = 1
     cfg.model.auxiliary_head.num_classes = 1
 
-    # Simply load checkpoint with mmseg built-in function
+    # Build model
     model = build_segmentor(
         cfg.model,
         train_cfg=cfg.get('train_cfg'),
         test_cfg=cfg.get('test_cfg'),
+    )
+
+    # Load checkpoint
+    load_checkpoint(
+        model, 
+        mmseg_params[(architecture, backbone_name)]['ckpt_path'], 
+        map_location='cuda',
     )
 
     # Patch first conv from 3 to in_channels
