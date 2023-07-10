@@ -160,14 +160,15 @@ class ContrailsDataset:
         transform_mix=None,
         transform_cpp=None,
         is_mask_empty: Optional[List[bool]] = None,
+        mmap: bool = False,
         # Args below change the way images are loaded
         # thus change cache behavior.
         # See ContrailsDatamodule.make_cache for details.
         *,
         band_ids: Optional[Tuple[int]] = None,
-        mask_type: Literal['voting50', 'mean', 'weighted'] = 'voting50',
-        propagate_mask: bool = False,
-        mmap: bool = False,
+        mask_type: Literal['voting50', 'mean', 'weighted', None] = 'voting50',
+        use_not_labeled: bool = False,
+        pseudolabels_path: Optional[Path] = None,
         conversion_type: Literal[
             'ash', 
             'minmax3', 
@@ -182,17 +183,22 @@ class ContrailsDataset:
     ):
         self.record_dirs = record_dirs
         self.records = None
+        self.mmap = mmap
 
         if band_ids is None:
             band_ids = tuple(BANDS)
         assert all(band in BANDS for band in band_ids)
         self.band_ids = band_ids
 
-        assert mask_type in ('voting50', 'mean', 'weighted')
+        assert mask_type is None or mask_type in ('voting50', 'mean', 'weighted')
         self.mask_type = mask_type
 
-        self.propagate_mask = propagate_mask
-        self.mmap = mmap
+        if use_not_labeled and mask_type is not None:
+            assert pseudolabels_path is not None, \
+                'pseudolabels_path must be provided if use_not_labeled=True ' \
+                'and mask_type is not None'
+        self.use_not_labeled = use_not_labeled
+        self.pseudolabels_path = pseudolabels_path
         self.transform = transform
         self.transform_mix = transform_mix
         self.transform_cpp = transform_cpp
@@ -218,20 +224,11 @@ class ContrailsDataset:
         self.shared_cache = shared_cache
     
     def __len__(self):
-        if self.propagate_mask:
+        if self.use_not_labeled:
             return len(self.record_dirs) * N_TIMES
         return len(self.record_dirs)
 
-    def _get_item(self, idx, record_dir):
-        # Get path and indices
-        if self.propagate_mask:
-            # Load all the times to use in propagation
-            time_idx = idx % N_TIMES
-            time_indices = np.arange(N_TIMES)
-        else:
-            # Load only the labeled time
-            time_idx = 0  # only single time index is loaded
-            time_indices = [LABELED_TIME_INDEX]
+    def _get_item(self, time_idx, record_dir):        
         # Load bands
         # data: dict, key is band from self.band_ids, value 
         # is float numpy array of shape (H, W, T)
@@ -240,7 +237,7 @@ class ContrailsDataset:
             data[band_id] = np.load(
                 record_dir / f'band_{band_id:02}.npy',
                 mmap_mode='r' if self.mmap else None
-            )[..., time_indices]
+            )[..., time_idx]
 
         # Convert to numpy array
         image = get_images(
@@ -252,21 +249,37 @@ class ContrailsDataset:
         
         # Load masks (if available)
         human_pixel_masks = None
-        if (record_dir / 'human_pixel_masks.npy').exists():
+        if (
+            self.mask_type is not None and 
+            (record_dir / 'human_pixel_masks.npy').exists()
+        ):
             human_pixel_masks = np.load(
                 record_dir / 'human_pixel_masks.npy'
             ) > 0  # (H, W, 1)
         
         human_individual_masks = None
         if (
+            self.mask_type is not None and
             self.mask_type in ['mean', 'weighted'] and 
             (record_dir / 'human_individual_masks.npy').exists()
         ):
             human_individual_masks = np.load(
                 record_dir / 'human_individual_masks.npy'
             ) > 0  # (H, W, 1, N)
+
+        pseudolabel_masks = None
+        if (
+            self.mask_type is not None and
+            self.use_not_labeled and 
+            self.pseudolabels_path is not None and 
+            (record_dir / 'pseudolabel_masks.npy').exists()
+        ):
+            pseudolabel_masks = np.load(
+                record_dir / 'pseudolabel_masks.npy'
+            )[..., time_idx]
         
         # Get single mask
+        mask = None
         if human_pixel_masks is not None:
             if self.mask_type == 'voting50' or human_individual_masks is None:
                 if self.mask_type != 'voting50' and human_individual_masks is None:
@@ -321,46 +334,42 @@ class ContrailsDataset:
             mask = np.clip(mask, 0, 1)
             mask = (mask * 255).astype(np.uint8)  # (H, W, 1)
 
-        # Propagate mask
-        if self.propagate_mask:
-            raise NotImplementedError(
-                'Mask propagation is not implemented yet.'
-            )
-        else:
-            assert mask is None or mask.shape[-1] == 1
-            assert image is None or image.shape[-1] == 1
-
-        # Select time index
-        if image is not None:
-            image = image[..., time_idx]  # (H, W, C, T) -> (H, W, C)
-        if mask is not None:
-            mask = mask[..., time_idx]  # (H, W, T) -> (H, W)
+        # Get masks for all times
+        if mask is None and pseudolabel_masks is not None:
+            mask = pseudolabel_masks
         
         # Prepare output
         output = {
             'image': image,  # (H, W, C)
             'mask': mask,  # (H, W)
             'path': str(record_dir),
+            'time_idx': time_idx if self.use_not_labeled else LABELED_TIME_INDEX,
         }
         
         return output
     
     def _get_item_cached(self, idx):
         # Get path and indices
-        if self.propagate_mask:
+        if self.use_not_labeled:
             record_idx = idx // N_TIMES
         else:
             record_idx = idx
         record_dir = self.record_dirs[record_idx]
+
+        # Get path and indices
+        if self.use_not_labeled:
+            time_idx = idx % N_TIMES
+        else:
+            time_idx = LABELED_TIME_INDEX  # only single time index is loaded
         
         # Get item from cache or load it
-        if self.shared_cache is not None and record_dir in self.shared_cache:
-            output = self.shared_cache[record_dir]
+        if self.shared_cache is not None and (time_idx, record_dir) in self.shared_cache:
+            output = self.shared_cache[(time_idx, record_dir)]
         else:
             logger.debug(f'Cache miss, adding: {record_dir}')
-            output = self._get_item(idx, record_dir)
+            output = self._get_item(time_idx, record_dir)
             if self.shared_cache is not None:
-                self.shared_cache[record_dir] = deepcopy(output)
+                self.shared_cache[(time_idx, record_dir)] = deepcopy(output)
         
         return output
     
@@ -412,6 +421,8 @@ class ContrailsDataset:
         # to float range [0, 1]
         if output['mask'] is not None:
             output['mask'] = output['mask'].astype(np.float32) / 255.0
+        else:
+            del output['mask']
 
         # TODO: check which way is better:
         # - cpp and mix then single transform

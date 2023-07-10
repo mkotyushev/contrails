@@ -141,11 +141,13 @@ data:
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: weighted
-      propagate_mask: false
-      mmap: true
+      use_not_labeled: false
+      pseudolabels_path: null
       conversion_type: ash
       quantize: true
       stats_precomputed: false
+    mmap: true
+    disable_cache: false
     cache_dir: cache
     split_info_path: ./split_info.csv
     empty_mask_strategy: null

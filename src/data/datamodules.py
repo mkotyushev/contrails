@@ -47,6 +47,8 @@ class ContrailsDatamodule(LightningDataModule):
         prefetch_factor: int = 2,
         persistent_workers: bool = False,
         use_online_val_test: bool = False,
+        mmap: bool = True,
+        disable_cache: bool = False,
         cache_dir: Optional[Path] = None,
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
         split_info_path: Optional[Path] = None,
@@ -193,9 +195,12 @@ class ContrailsDatamodule(LightningDataModule):
                 test_record_dirs += [path for path in data_dir.iterdir() if path.is_dir()]
 
         # Create shared cache.
-        self.make_cache(
-            record_dirs=train_record_dirs + val_record_dirs + test_record_dirs
-        )
+        if not self.hparams.disable_cache:
+            use_not_labeled = self.hparams.dataset_kwargs.get('use_not_labeled', False)
+            self.make_cache(
+                record_dirs=train_record_dirs + val_record_dirs + test_record_dirs,
+                use_not_labeled=use_not_labeled
+            )
 
         # Train
         if self.train_dataset is None and train_record_dirs:
@@ -206,6 +211,7 @@ class ContrailsDatamodule(LightningDataModule):
                 transform_cpp=self.train_transform_cpp,
                 shared_cache=self.cache,
                 is_mask_empty=train_is_mask_empty,
+                mmap=self.hparams.mmap,
                 **self.hparams.dataset_kwargs,
             )
 
@@ -217,6 +223,7 @@ class ContrailsDatamodule(LightningDataModule):
                 transform_cpp=None,
                 shared_cache=self.cache,
                 is_mask_empty=None,
+                mmap=self.hparams.mmap,
                 **self.hparams.dataset_kwargs,
             )
 
@@ -228,6 +235,7 @@ class ContrailsDatamodule(LightningDataModule):
                 transform_cpp=None,
                 shared_cache=self.cache,
                 is_mask_empty=None,
+                mmap=self.hparams.mmap,
                 **self.hparams.dataset_kwargs,
             )
 
@@ -242,7 +250,7 @@ class ContrailsDatamodule(LightningDataModule):
         if self.test_dataset is not None:
             self.test_dataset.transform = self.test_transform
 
-    def make_cache(self, record_dirs) -> None:
+    def make_cache(self, record_dirs, use_not_labeled) -> None:
         cache_save_path = None
         if self.hparams.cache_dir is not None:
             # Name the cache with md5 hash of 
@@ -261,6 +269,7 @@ class ContrailsDatamodule(LightningDataModule):
         self.cache = mp.Manager().CacheDictWithSaveProxy(
             record_dirs=record_dirs,
             cache_save_path=cache_save_path,
+            use_not_labeled=use_not_labeled,
         )
 
         if cache_save_path is None:
@@ -395,4 +404,11 @@ class ContrailsDatamodule(LightningDataModule):
         )
 
     def predict_dataloader(self) -> DataLoader:
-        return self.test_dataloader()
+        if self.test_dataset is None:
+            logger.warning(
+                "test dataset is not defined, "
+                "using val dataset for prediction instead"
+            )
+            return self.val_dataloader()
+        else:
+            return self.test_dataloader()

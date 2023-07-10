@@ -29,6 +29,8 @@ from torchvision.utils import make_grid
 from lightning.pytorch.callbacks import EarlyStopping, Callback, ModelCheckpoint, BasePredictionWriter
 from torch_ema import ExponentialMovingAverage
 
+from src.data.datasets import LABELED_TIME_INDEX, N_TIMES
+
 
 logger = logging.getLogger(__name__)
 
@@ -766,7 +768,7 @@ def contrails_collate_fn(batch):
             output[k].append(v)
     
     for k, v in output.items():
-        if isinstance(v[0], str) or v[0].dtype == object:
+        if isinstance(v[0], (str, int)) or v[0].dtype == object:
             output[k] = v
         else:
             output[k] = default_collate(v)
@@ -776,8 +778,12 @@ def contrails_collate_fn(batch):
 
 class CacheDictWithSave(dict):
     """Cache dict that saves itself to disk when full."""
-    def __init__(self, record_dirs, cache_save_path: Optional[Path] = None, *args, **kwargs):
-        self.total_expected_records = len(record_dirs)
+    def __init__(self, record_dirs, cache_save_path: Optional[Path] = None, use_not_labeled: bool = False, *args, **kwargs):
+        if use_not_labeled:
+            self.total_expected_records = len(record_dirs) * N_TIMES
+        else:
+            self.total_expected_records = len(record_dirs)
+
         self.cache_save_path = cache_save_path
         self.cache_already_on_disk = False
         
@@ -789,7 +795,11 @@ class CacheDictWithSave(dict):
             assert len(self) >= self.total_expected_records, \
                 f'Cache loaded from {self.cache_save_path} has {len(self)} records, ' \
                 f'but {self.total_expected_records} were expected.'
-            assert all(d in self for d in record_dirs)
+            if use_not_labeled:
+                for time_idx in range(N_TIMES):
+                    assert all((time_idx, d) in self for d in record_dirs)
+            else:
+                assert all((LABELED_TIME_INDEX, d) in self for d in record_dirs)
 
     def __setitem__(self, index, value):
         # Hack to allow setting items in joblib.load()
@@ -968,7 +978,7 @@ def temp_seed(seed):
 
 
 class ContrailsPredictionWriterPng(BasePredictionWriter):
-    def __init__(self, output_dir: Path, postfix: str | None = None, img_size = None):
+    def __init__(self, output_dir: Path, postfix: str | None = None, img_size = None, threshold = None):
         super().__init__('batch')
         self.output_dir = output_dir
         if postfix is None:
@@ -984,6 +994,7 @@ class ContrailsPredictionWriterPng(BasePredictionWriter):
         self.postfix = postfix
         logger.info(f'ContrailsPredictionWriterPng postfix: {postfix}')
         self.img_size = img_size
+        self.threshold = threshold
 
     def write_on_batch_end(
         self, trainer, pl_module, prediction, batch_indices, batch, batch_idx, dataloader_idx
@@ -1002,10 +1013,15 @@ class ContrailsPredictionWriterPng(BasePredictionWriter):
                 align_corners=False,
             ).squeeze(1)
 
+        # Threshold
+        if self.threshold is not None:
+            prediction = (prediction > self.threshold).long()
+
         # Conver to numpy
         prediction = (prediction.cpu().numpy() * 255).astype(np.uint8)
 
         # Save
         for i in range(prediction.shape[0]):
-            out_path = self.output_dir / (batch['path'][i].split('/')[-1] + f'_{self.postfix}.png')
+            time_idx = batch['time_idx'][i]
+            out_path = self.output_dir / (batch['path'][i].split('/')[-1] + f'_{time_idx}_{self.postfix}.png')
             cv2.imwrite(str(out_path), prediction[i])
