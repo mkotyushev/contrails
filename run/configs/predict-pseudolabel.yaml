@@ -1,0 +1,19 @@
+trainer:
+  callbacks:
+    - class_path: src.utils.utils.ContrailsPredictionWriterPng
+      init_args:
+        output_dir: preds
+        img_size: 256
+        threshold: 0.75
+        postfix: "fold_0"
+data:
+  init_args:
+    disable_cache: false
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: null
+      use_not_labeled: true
+      pseudolabels_path: null
+      conversion_type: ash
+      quantize: true
+      stats_precomputed: false
