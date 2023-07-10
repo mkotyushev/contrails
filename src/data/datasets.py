@@ -277,7 +277,7 @@ class ContrailsDataset:
         ):
             pseudolabel_masks = np.load(
                 self.pseudolabels_path / f'{record_id}.npy'
-            )[..., time_idx]  # (H, W, 1)
+            )[..., time_idx]  # (H, W)
         
         # Get single mask
         mask = None
@@ -334,6 +334,7 @@ class ContrailsDataset:
             mask = mask.astype(np.float32)  # (H, W, 1)
             mask = np.clip(mask, 0, 1)
             mask = (mask * 255).astype(np.uint8)  # (H, W, 1)
+            mask = mask[..., 0]  # (H, W)
 
         # Get masks for all times
         if mask is None and pseudolabel_masks is not None:
