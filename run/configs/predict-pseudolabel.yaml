@@ -8,7 +8,7 @@ trainer:
         postfix: "fold_0"
 data:
   init_args:
-    disable_cache: false
+    disable_cache: true
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: null
