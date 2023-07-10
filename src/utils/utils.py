@@ -980,6 +980,7 @@ def temp_seed(seed):
 class ContrailsPredictionWriterPng(BasePredictionWriter):
     def __init__(self, output_dir: Path, postfix: str | None = None, img_size = None, threshold = None):
         super().__init__('batch')
+        output_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir = output_dir
         if postfix is None:
             # Generate random alphanumeric string, seed is calculated from
