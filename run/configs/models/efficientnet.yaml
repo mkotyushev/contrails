@@ -3,6 +3,8 @@ trainer:
   accumulate_grad_batches: 16
 model:
   init_args:
+    library: smp_old
+    architecture: unet
     backbone_name: timm-efficientnet-b7
     compile: true
 data:

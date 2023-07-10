@@ -3,6 +3,8 @@ trainer:
   accumulate_grad_batches: 2
 model:
   init_args:
+    library: smp_old
+    architecture: unet
     backbone_name: maxvit_rmlp_base_rw_384.sw_in12k_ft_in1k
     compile: true
 data:

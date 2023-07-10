@@ -3,6 +3,8 @@ trainer:
   accumulate_grad_batches: 32
 model:
   init_args:
+    library: eva
+    architecture: upernet
     backbone_name: eva02_L_ade_seg_upernet_sz512
     compile: false
 data:
