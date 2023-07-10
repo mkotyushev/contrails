@@ -11,6 +11,7 @@ data:
     disable_cache: true  # cache not really used so not wasting time to load it
     cache_dir: null
     to_predict: val
+    fold_index: 4
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: null

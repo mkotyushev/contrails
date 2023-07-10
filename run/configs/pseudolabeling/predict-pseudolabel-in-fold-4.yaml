@@ -11,6 +11,7 @@ data:
     disable_cache: false
     cache_dir: cache_pseudolabel
     to_predict: train
+    fold_index: 4
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: null
