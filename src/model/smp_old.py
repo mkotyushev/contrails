@@ -388,7 +388,7 @@ def patch_first_conv(model, new_in_channels, default_in_channels=3, pretrained=T
         module.weight = nn.parameter.Parameter(new_weight)
 
 
-class Unet(SegmentationModel):
+class UnetOld(SegmentationModel):
     """Unet_ is a fully convolution neural network for image semantic segmentation. Consist of *encoder*
     and *decoder* parts connected with *skip connections*. Encoder extract features of different spatial
     resolution (skip connections) which are used by decoder to define accurate segmentation mask. Use *concatenation*

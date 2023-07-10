@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import math
 import albumentations as A
 import multiprocessing as mp
 import pandas as pd
@@ -49,6 +50,7 @@ class ContrailsDatamodule(LightningDataModule):
         cache_dir: Optional[Path] = None,
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
         split_info_path: Optional[Path] = None,
+        scale_factor: int = 1,
     ):
         super().__init__()
 
@@ -63,6 +65,7 @@ class ContrailsDatamodule(LightningDataModule):
         
         self.save_hyperparameters()
 
+        assert scale_factor >= 1, 'scale_factor must be >= 1'
         assert (
             num_folds is None and fold_index is None or
             num_folds is not None and fold_index is not None
@@ -91,13 +94,23 @@ class ContrailsDatamodule(LightningDataModule):
 
     def build_transforms(self) -> None:
         # Train augmentations
+        if self.hparams.scale_factor == 1:
+            train_resize_transform = A.Resize(
+                height=self.hparams.img_size,
+                width=self.hparams.img_size,
+                always_apply=True,
+            )
+        else:
+            train_resize_transform = A.RandomResizedCrop(
+                height=self.hparams.img_size,
+                width=self.hparams.img_size,
+                scale=(1 / self.hparams.scale_factor, 1.0),
+                always_apply=True,
+            )
+
         self.train_transform = A.Compose(
             [
-                A.Resize(
-                    height=self.hparams.img_size,
-                    width=self.hparams.img_size,
-                    always_apply=True,
-                ),
+                train_resize_transform,
                 RandAugment(self.hparams.randaugment_num_ops, self.hparams.randaugment_magnitude),
                 A.Normalize(
                     max_pixel_value=255.0,
@@ -138,8 +151,8 @@ class ContrailsDatamodule(LightningDataModule):
         self.val_transform = self.test_transform = A.Compose(
             [
                 A.Resize(
-                    height=self.hparams.img_size,
-                    width=self.hparams.img_size,
+                    height=self.hparams.scale_factor * self.hparams.img_size,
+                    width=self.hparams.scale_factor * self.hparams.img_size,
                     always_apply=True,
                 ),
                 A.Normalize(
@@ -351,9 +364,11 @@ class ContrailsDatamodule(LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader:
+        batch_size = math.floor(self.hparams.batch_size // self.hparams.scale_factor ** 2)
+        batch_size = max(batch_size, 1)
         val_dataloader = DataLoader(
             dataset=self.val_dataset, 
-            batch_size=self.hparams.batch_size, 
+            batch_size=batch_size, 
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             prefetch_factor=self.hparams.prefetch_factor,
@@ -366,9 +381,11 @@ class ContrailsDatamodule(LightningDataModule):
 
     def test_dataloader(self) -> DataLoader:
         assert self.test_dataset is not None, "test dataset is not defined"
+        batch_size = math.floor(self.hparams.batch_size // self.hparams.scale_factor ** 2)
+        batch_size = max(batch_size, 1)
         return DataLoader(
             dataset=self.test_dataset, 
-            batch_size=self.hparams.batch_size, 
+            batch_size=batch_size, 
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             prefetch_factor=self.hparams.prefetch_factor,

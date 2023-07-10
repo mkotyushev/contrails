@@ -3,6 +3,7 @@ import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import segmentation_models_pytorch as smp
 from copy import deepcopy
 from torch.nn import ModuleDict
 from lightning import LightningModule
@@ -13,10 +14,20 @@ from torchmetrics.classification import BinaryF1Score
 from torchmetrics import Metric
 from lightning.pytorch.utilities import grad_norm
 from torchvision.ops import sigmoid_focal_loss
-from transformers import SegformerForSemanticSegmentation
+from transformers import (
+    TimmBackbone,
+    TimmBackboneConfig,
+    ConvNextV2Backbone,
+    ConvNextV2Config,
+    UperNetConfig,
+    UperNetForSemanticSegmentation,
+    SegformerForSemanticSegmentation, 
+    Mask2FormerConfig,
+    Mask2FormerForUniversalSegmentation,
+)
 
+from src.model.smp_old import UnetOld
 from src.data.transforms import Tta
-from src.model.smp import Unet, patch_first_conv, DiceLoss
 from src.utils.mechanic import mechanize
 from src.utils.utils import (
     FeatureExtractorWrapper, 
@@ -466,12 +477,15 @@ eva02_backbone_name_to_params = {
 }
 def build_segmentation_eva02(
     backbone_name,
+    architecture,
     in_channels, 
     pretrained=True,  # on inference loaded by lightning
     grad_checkpointing=False,
     img_size=384,
     xattn=False,
 ):
+    assert architecture == 'upernet'
+
     import sys
 
     sys.path.insert(0, '/workspace/contrails/lib/EVA/EVA-02/seg')
@@ -577,12 +591,11 @@ def build_segmentation_eva02(
             load_checkpoint_to_model_eva02(checkpoint, model)
     
     # Patch first conv from 3 to in_channels
-    patch_first_conv(
+    smp.encoders._utils.patch_first_conv(
         model, 
         new_in_channels=in_channels,
         default_in_channels=3, 
         pretrained=True,
-        conv_type=nn.Conv2d,
     )
     
     # Set grad checkpointing
@@ -592,8 +605,30 @@ def build_segmentation_eva02(
     return model
 
 
-def build_segmentation_timm(
+def build_segmentation_smp(
     backbone_name, 
+    architecture,
+    in_channels=1, 
+    pretrained=True,
+):
+    """Build segmentation model."""
+    encoder_weights = "imagenet" if pretrained else None
+    if architecture == 'unet':
+        model = smp.Unet(
+            encoder_name=backbone_name,     # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
+            encoder_weights=encoder_weights,     # use `imagenet` pre-trained weights for encoder initialization
+            in_channels=in_channels,                  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
+            classes=1,                      # model output channels (number of classes in your dataset)
+        )
+    else:
+        raise ValueError(f'unknown architecture {architecture} for SMP')
+
+    return model
+
+
+def build_segmentation_smp_old(
+    backbone_name, 
+    architecture,
     in_channels=1, 
     decoder_attention_type=None, 
     img_size=256,
@@ -601,6 +636,8 @@ def build_segmentation_timm(
     pretrained=True,
 ):
     """Build segmentation model."""
+    assert architecture == 'unet'
+
     if backbone_name.startswith('tf_'):
         backbone_param_key = backbone_name.split('_')[1]
     else:
@@ -616,12 +653,11 @@ def build_segmentation_timm(
         **create_model_kwargs,
     )
 
-    patch_first_conv(
+    smp.encoders._utils.patch_first_conv(
         encoder, 
         new_in_channels=in_channels,
         default_in_channels=3, 
         pretrained=pretrained,
-        conv_type=nn.Conv2d,
     )
     encoder.set_grad_checkpointing(grad_checkpointing)
 
@@ -629,7 +665,7 @@ def build_segmentation_timm(
         encoder, 
         format=backbone_name_to_params[backbone_param_key]['format']
     )
-    model = Unet(
+    model = UnetOld(
         encoder=encoder,
         encoder_channels=get_feature_channels(
             encoder, 
@@ -647,6 +683,7 @@ def build_segmentation_timm(
 
 def build_segmentation_hf(
     backbone_name, 
+    architecture='upernet',
     in_channels=1, 
     grad_checkpointing=False,
     pretrained=True,
@@ -656,22 +693,84 @@ def build_segmentation_hf(
             'grad_checkpointing is not supported for nvidia models, '
             'setting grad_checkpointing=False.'
         )
-    model = SegformerForSemanticSegmentation.from_pretrained(
-        backbone_name,
-        num_labels=1,
-        ignore_mismatched_sizes=False,
-        num_channels=3,
-    )
-    model = HfWrapper(model)
+    # TODO: fix pretrained not used
+    if architecture == 'segformer':
+        model = SegformerForSemanticSegmentation.from_pretrained(
+            backbone_name,
+            num_labels=1,
+            ignore_mismatched_sizes=False,
+            num_channels=3,
+        )
+    elif architecture == 'upernet':
+        if 'openmmlab' in backbone_name:
+            # Native full OpenMMlab models
+            model = UperNetForSemanticSegmentation.from_pretrained(
+                backbone_name,
+                num_labels=1,
+                # carefully check 'size mismatch' warnings in logs 
+                # it should consist only decode_head and auxiliary_head
+                # missmatch due to different number of classes
+                ignore_mismatched_sizes=True,
+            )
+        else:
+            # Pretrained backbone with random initialization as per 
+            # https://huggingface.co/docs/transformers/main/en/model_doc/upernet#usage
+            if backbone_name.startswith('facebook/convnextv2'):
+                # Well supported by upernet
+                backbone_config = ConvNextV2Config.from_pretrained(
+                    backbone_name,
+                    out_features=["stage1", "stage2", "stage3", "stage4"],
+                )
+                backbone = ConvNextV2Backbone.from_pretrained(
+                    backbone_name,
+                    out_features=["stage1", "stage2", "stage3", "stage4"],
+                )
+            else:
+                backbone_config = TimmBackboneConfig(
+                    backbone_name,
+                    use_pretrained_backbone=True,
+                    out_indices=[0, 1, 2, 3],
+                )
+                backbone = TimmBackbone(
+                    backbone_config,
+                )
+
+            config = UperNetConfig(
+                backbone_config=backbone_config, 
+                num_labels=1, 
+                use_auxiliary_head=False,
+            )
+            model = UperNetForSemanticSegmentation(config)
+
+            # Load pretrained backbone explicitly
+            model.backbone.load_state_dict(backbone.state_dict())
+    elif architecture == 'mask2former':
+        # Only native full mask2former models
+        # or swin backbone (does not make sense to use it separately)
+        assert 'facebook/mask2former' in backbone_name, \
+            f'backbone_name must start with facebook/mask2former, got {backbone_name}'
+        model = Mask2FormerForUniversalSegmentation.from_pretrained(
+            backbone_name,
+            num_labels=1,
+            # num_queries=1,  # TODO check if num_queries=1 better than default
+            # carefully check 'size mismatch' warnings in logs 
+            # it should consist only decode_head and auxiliary_head
+            # missmatch due to different number of classes
+            ignore_mismatched_sizes=True,
+        )
+    else:
+        raise ValueError(f'unknown architecture {architecture} for HF')
+    
+    model = HfWrapper(model, scale_factor=4 if architecture in ['segformer', 'mask2former'] else 1)
 
     # Patch first conv from 3 to in_channels
-    patch_first_conv(
-        model, 
-        new_in_channels=in_channels,
-        default_in_channels=3, 
-        pretrained=pretrained,
-        conv_type=nn.Conv2d,
-    )
+    if in_channels != 3:
+        smp.encoders._utils.patch_first_conv(
+            model, 
+            new_in_channels=in_channels,
+            default_in_channels=3, 
+            pretrained=pretrained,
+        )
 
     return model
 
@@ -732,8 +831,9 @@ def parse_loss_name(loss_name):
 class SegmentationModule(BaseModule):
     def __init__(
         self, 
-        decoder_attention_type: Literal[None, 'scse'] = None,
-        backbone_name: str = 'swinv2_tiny_window8_256.ms_in1k',
+        library: Literal['smp_old', 'smp', 'hf', 'eva'] = 'smp',
+        architecture: Literal['unet', 'upernet', 'segformer', 'mask2former'] = 'unet',
+        backbone_name: str = 'timm-efficientnet-b5',
         in_channels: int = 6,
         log_preview_every_n_epochs: int = 10,
         tta_params: Dict[str, Any] = None,
@@ -772,8 +872,9 @@ class SegmentationModule(BaseModule):
 
         torch.set_float32_matmul_precision('medium')
 
-        if backbone_name.startswith('eva02'):
+        if library == 'eva':
             self.model = build_segmentation_eva02(
+                architecture=architecture,
                 in_channels=in_channels, 
                 backbone_name=backbone_name,
                 pretrained=pretrained,
@@ -781,22 +882,33 @@ class SegmentationModule(BaseModule):
                 img_size=img_size,
                 xattn=not compile,  # xattn is not supported by torch.compile
             )
-        elif backbone_name.startswith('nvidia'):
+        elif library == 'hf':
             self.model = build_segmentation_hf(
-                backbone_name, 
+                backbone_name=backbone_name, 
+                architecture=architecture,
                 in_channels=in_channels,
                 grad_checkpointing=grad_checkpointing,
                 pretrained=pretrained,
             )
-        else:
-            self.model = build_segmentation_timm(
-                backbone_name, 
+        elif library == 'smp':
+            self.model = build_segmentation_smp(
+                backbone_name=backbone_name, 
+                architecture=architecture,
                 in_channels=in_channels,
-                decoder_attention_type=decoder_attention_type,
+                pretrained=pretrained,
+            )
+        elif library == 'smp_old':
+            self.model = build_segmentation_smp_old(
+                backbone_name, 
+                architecture=architecture,
+                in_channels=in_channels,
+                decoder_attention_type=None,
                 img_size=img_size,
                 grad_checkpointing=grad_checkpointing,
                 pretrained=pretrained,
             )
+        else:
+            raise ValueError(f'unknown library {library}')
 
         if compile:
             self.model = torch.compile(self.model)
@@ -850,7 +962,7 @@ class SegmentationModule(BaseModule):
                     alpha=alpha,
                 )
             elif loss_name == 'dice':
-                loss_fn = DiceLoss(mode="binary", smooth=1.0)
+                loss_fn = smp.losses.DiceLoss(mode="binary", smooth=1.0)
                 loss_value = loss_fn(preds, batch['mask'])
             elif loss_name == 'gdl':
                 loss_value = generalized_dice_loss(

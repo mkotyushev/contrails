@@ -62,61 +62,90 @@ class MyLightningCLISweep(MyLightningCLI):
     """
     def before_instantiate_classes(self) -> None:
         """Implement to run some code before instantiating the classes."""
-        backbone_name = self.config['fit']['model']['init_args']['backbone_name']
-        if backbone_name == 'tf_efficientnet_b5.ns_jft_in1k':
-            # Special case to speedup very small model training
-            device_to_batch_size_divider = {
-                'NVIDIA GeForce RTX 3090': 1,
-                'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 1,
-                'Tesla T4': 1,
-                'Tesla V100-SXM2-16GB': 1,
-            }
-        else:
-            device_to_batch_size_divider = {
-                'NVIDIA GeForce RTX 3090': 1,
-                'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 2,
-                'Tesla T4': 2,
-                'Tesla V100-SXM2-16GB': 2,
-            }
+        device_to_batch_size_divider = {
+            'NVIDIA GeForce RTX 3090': 1,
+            'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 2,
+            'Tesla T4': 2,
+            'Tesla V100-SXM2-16GB': 2,
+        }
+
         backbone_name_to_batch_params_img_size_256 = {
-            'convnextv2_base.fcmae_ft_in22k_in1k_384': {
-                'batch_size': 64,
-                'accumulate_grad_batches': 1,
-            },
+            # Eva
             'eva02_B_ade_seg_upernet_sz512': {
                 'batch_size': 64,
                 'accumulate_grad_batches': 1,
             },
-            'maxvit_rmlp_base_rw_384.sw_in12k_ft_in1k': {
-                'batch_size': 32,
-                'accumulate_grad_batches': 2,
+
+            # SMP + Unet
+            'timm-efficientnet-b5': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
             },
+            'timm-efficientnet-b7': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+            'tu-tf_efficientnet_b5': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+
+            # HF + Segformer
             'nvidia/mit-b5': {
                 'batch_size': 64,
                 'accumulate_grad_batches': 1,
             },
-            'tf_efficientnetv2_l.in21k_ft_in1k': {
+
+            # HF + Upernet
+            'openmmlab/upernet-convnext-base': {
                 'batch_size': 32,
                 'accumulate_grad_batches': 2,
             },
-            'tf_efficientnet_b5.ns_jft_in1k': {
-                'batch_size': 64,
-                'accumulate_grad_batches': 1,
+            'facebook/convnextv2-base-22k-224': {
+                'batch_size': 16,
+                'accumulate_grad_batches': 4,
             },
-            'tf_efficientnet_b7.ns_jft_in1k': {
+            'facebook/convnextv2-base-22k-384': {
+                'batch_size': 16,
+                'accumulate_grad_batches': 4,
+            },
+            'tf_efficientnet_b5': {
+                'batch_size': 16,
+                'accumulate_grad_batches': 4,
+            },
+            'tf_efficientnet_b7': {
+                'batch_size': 16,
+                'accumulate_grad_batches': 4,
+            },
+            'tf_efficientnetv2_m': {
                 'batch_size': 32,
                 'accumulate_grad_batches': 2,
+            },
+            'tf_efficientnetv2_xl': {
+                'batch_size': 32,
+                'accumulate_grad_batches': 2,
+            },
+            'maxvit_rmlp_base_rw_384': {
+                'batch_size': 16,
+                'accumulate_grad_batches': 4,
             },
         }
 
+        # Force img_size for maxvit models
+        # (required to be divisible by 192)
+        if self.config['fit']['model']['init_args']['backbone_name'] == 'maxvit_rmlp_base_rw_384':
+            self.config['fit']['data']['init_args']['img_size'] = 384
+            self.config['fit']['model']['init_args']['img_size'] = 384
+
         # Force not deterministic training
+        deterministic_not_supported_archs = ['eva', 'upernet', 'segformer']
         if (
-            self.config['fit']['model']['init_args']['backbone_name'].startswith('nvidia') or
-            self.config['fit']['model']['init_args']['backbone_name'].startswith('eva02')
+            self.config['fit']['model']['init_args']['architecture'] in deterministic_not_supported_archs
         ):
             if self.config['fit']['trainer']['deterministic']:
                 logger.warning(
-                    'Deterministic training is not supported with NVIDIA or Eva02 models. '
+                    f'Deterministic training is not supported for {deterministic_not_supported_archs} archs. '
+                    f"Got {self.config['fit']['model']['init_args']['architecture']}. "
                     'Setting `deterministic=False`.'
                 )
             self.config['fit']['trainer']['deterministic'] = False
@@ -688,12 +717,19 @@ class HfWrapper(nn.Module):
     def __init__(self, model, scale_factor=4):
         super().__init__()
         self.model = model
-        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor)
+        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor) if scale_factor != 1 else nn.Identity()
     
     def forward(self, x):
-        x = self.model(x)['logits']
+        x = self.model(x)
+        
+        if 'logits' in x:
+            x = x['logits']
+        else:  # mask2former
+            x, _ = x.masks_queries_logits.max(1, keepdim=True)
+        
         # Upsample to original size
         x = self.upsampling(x)
+        
         return x
 
 

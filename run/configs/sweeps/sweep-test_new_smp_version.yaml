@@ -9,6 +9,9 @@ command:
   - ${args}
 method: grid
 parameters:
+  data.init_args.img_size:
+    distribution: constant
+    value: 256
   model.init_args.library:
     distribution: constant
     value: hf
@@ -16,14 +19,10 @@ parameters:
     distribution: constant
     value: upernet
   model.init_args.backbone_name:
-    distribution: constant
-    value: google/efficientnet-b5
-  data.init_args.img_size:
     distribution: categorical
-    values:
-    - 256
-    - 384
-    - 512
-    - 640
-    - 768
-    - 1024
+    values: 
+    - openmmlab/upernet-convnext-base
+    - facebook/convnextv2-base-22k-384
+    - tf_efficientnet_b5
+    - tf_efficientnetv2_m
+
