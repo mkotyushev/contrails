@@ -1,3 +1,6 @@
 [submodule "lib/EVA"]
 	path = lib/EVA
 	url = git@github.com:mkotyushev/EVA.git
+[submodule "lib/InternImage"]
+	path = lib/InternImage
+	url = git@github.com:mkotyushev/InternImage.git
