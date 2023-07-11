@@ -1,10 +1,10 @@
 import logging
-from unittest.mock import patch
 import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import segmentation_models_pytorch as smp
+from unittest.mock import patch
 from copy import deepcopy
 from torch.nn import ModuleDict
 from lightning import LightningModule
@@ -16,6 +16,7 @@ from torchmetrics import Metric
 from lightning.pytorch.utilities import grad_norm
 from torchvision.ops import sigmoid_focal_loss
 from transformers import (
+    AutoBackbone,
     TimmBackbone,
     TimmBackboneConfig,
     ConvNextV2Backbone,
@@ -25,6 +26,10 @@ from transformers import (
     SegformerForSemanticSegmentation, 
     Mask2FormerConfig,
     Mask2FormerForUniversalSegmentation,
+)
+from transformers.models.mask2former.modeling_mask2former import (
+    Mask2FormerPixelDecoder,
+    Mask2FormerPixelLevelModuleOutput,
 )
 from mmseg.models import build_segmentor
 from mmengine.runner import load_checkpoint
@@ -43,12 +48,6 @@ from src.utils.utils import (
     get_feature_channels, 
     state_norm,
 )
-
-# To register custom models
-import sys
-sys.path.insert(0, '/workspace/contrails/lib/InternImage/segmentation')
-from src.model import internimage
-from src.model import eva2
 
 
 logger = logging.getLogger(__name__)
@@ -497,6 +496,9 @@ def build_segmentation_eva02(
 ):
     assert architecture == 'upernet'
 
+    # To register custom models
+    from src.model import eva2
+
     def load_checkpoint_to_model_eva02(checkpoint, model):
         """Modify checkpoint for different img_size & load it to model.
 
@@ -623,6 +625,11 @@ def build_segmentation_mmseg(
         f'unknown architecture {architecture} and ' \
         f'backbone {backbone_name} combination for mmseg'
     
+    # To register custom models
+    import sys
+    sys.path.insert(0, '/workspace/contrails/lib/InternImage/segmentation')
+    from src.model import internimage
+    
     # Get config
     cfg_path = mmseg_params[(architecture, backbone_name)]['cfg_path']
     cfg = Config.fromfile(cfg_path)
@@ -734,12 +741,6 @@ def build_segmentation_smp_old(
 
     return model
 
-
-from transformers import AutoBackbone
-from transformers.models.mask2former.modeling_mask2former import (
-    Mask2FormerPixelDecoder,
-    Mask2FormerPixelLevelModuleOutput,
-)
 
 class Mask2FormerPixelLevelModuleAnyBackbone(nn.Module):
     def __init__(self, config: Mask2FormerConfig):
