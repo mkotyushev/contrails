@@ -9,4 +9,4 @@ data:
   init_args:
     data_dirs: null
     data_dirs_test:
-      - /kaggle/input/google-research-identify-contrails-reduce-global-warming/test
+      - ../data/test
