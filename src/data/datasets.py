@@ -198,6 +198,8 @@ class ContrailsDataset:
                 'pseudolabels_path must be provided if use_not_labeled=True ' \
                 'and mask_type is not None'
         self.use_not_labeled = use_not_labeled
+        if pseudolabels_path is not None and isinstance(pseudolabels_path, str):
+            pseudolabels_path = Path(pseudolabels_path)
         self.pseudolabels_path = pseudolabels_path
         self.transform = transform
         self.transform_mix = transform_mix
