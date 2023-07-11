@@ -48,7 +48,8 @@ def main(args):
         for file_path in files:
             pred = cv2.imread(str(file_path), cv2.IMREAD_GRAYSCALE)  # (H, W)
             preds.append(pred)
-        preds = np.stack(preds, axis=-1).astype(np.float32).mean(-1)  # (H, W)
+        preds = np.stack(preds, axis=-1).astype(np.float32) / 255  # (H, W, N)
+        preds = preds.mean(-1)  # (H, W)
         preds = (preds > args.threshold)
 
         prediction_info.append({
