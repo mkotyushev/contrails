@@ -301,10 +301,17 @@ class ContrailsDatamodule(LightningDataModule):
         (self.hparams.cache_dir / 'datasets.py').write_bytes(datasets_content)
         
         with open(self.hparams.cache_dir / 'cache_info.yaml', 'w') as f:
+            commit_id, dirty = None, None
+            try:
+                commit_id = git.Repo(search_parent_directories=True).head.object.hexsha
+                dirty = git.Repo(search_parent_directories=True).is_dirty()
+            except git.exc.InvalidGitRepositoryError:
+                logger.warning("Not a git repository")
+            
             cache_info = {
                 'dataset_kwargs': self.hparams.dataset_kwargs, 
-                'commit_id': git.Repo(search_parent_directories=True).head.object.hexsha,
-                'dirty': git.Repo(search_parent_directories=True).is_dirty(),
+                'commit_id': commit_id,
+                'dirty': dirty,
             }
             yaml.dump(cache_info, f, default_flow_style=False)
     
