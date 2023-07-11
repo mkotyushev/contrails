@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def main(args):
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    args.output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Get grouped files
     record_id_to_files = defaultdict(list)
