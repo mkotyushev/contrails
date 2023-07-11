@@ -3,8 +3,10 @@ trainer:
     - class_path: src.utils.utils.ContrailsPredictionWriterPng
       init_args:
         output_dir: preds
+        img_size: 256
+        threshold: null
 data:
   init_args:
     data_dirs: null
     data_dirs_test:
-      - ../data/validation  # for local experiments
+      - /kaggle/input/google-research-identify-contrails-reduce-global-warming/test
