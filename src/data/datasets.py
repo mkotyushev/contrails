@@ -252,6 +252,7 @@ class ContrailsDataset:
         # Load masks (if available)
         human_pixel_masks = None
         if (
+            time_idx == LABELED_TIME_INDEX and
             self.mask_type is not None and 
             (record_dir / 'human_pixel_masks.npy').exists()
         ):
@@ -261,6 +262,7 @@ class ContrailsDataset:
         
         human_individual_masks = None
         if (
+            time_idx == LABELED_TIME_INDEX and
             self.mask_type is not None and
             self.mask_type in ['mean', 'weighted'] and 
             (record_dir / 'human_individual_masks.npy').exists()
