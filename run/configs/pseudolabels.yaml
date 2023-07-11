@@ -1,3 +1,5 @@
+trainer:
+  max_epochs: 8
 data:
   init_args:
     dataset_kwargs:
