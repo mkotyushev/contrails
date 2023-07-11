@@ -6,6 +6,7 @@ import multiprocessing as mp
 import pandas as pd
 import yaml
 import git
+from copy import deepcopy
 from pathlib import Path
 from typing import List, Literal, Optional
 from lightning import LightningDataModule
@@ -221,6 +222,11 @@ class ContrailsDatamodule(LightningDataModule):
                 **self.hparams.dataset_kwargs,
             )
 
+        # Remove pseudolabels from val & test
+        val_test_dataset_kwargs = deepcopy(self.hparams.dataset_kwargs)
+        val_test_dataset_kwargs['use_not_labeled'] = False
+        val_test_dataset_kwargs['pseudolabels_path'] = None
+
         if self.val_dataset is None and val_record_dirs:
             self.val_dataset = ContrailsDataset(
                 record_dirs=val_record_dirs, 
@@ -230,7 +236,7 @@ class ContrailsDatamodule(LightningDataModule):
                 shared_cache=self.cache,
                 is_mask_empty=None,
                 mmap=self.hparams.mmap,
-                **self.hparams.dataset_kwargs,
+                **val_test_dataset_kwargs,
             )
 
         if self.test_dataset is None and test_record_dirs:
@@ -242,7 +248,7 @@ class ContrailsDatamodule(LightningDataModule):
                 shared_cache=self.cache,
                 is_mask_empty=None,
                 mmap=self.hparams.mmap,
-                **self.hparams.dataset_kwargs,
+                **val_test_dataset_kwargs,
             )
 
     def reset_transforms(self):
