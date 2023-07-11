@@ -8,8 +8,8 @@ trainer:
         postfix: "fold_3"
 data:
   init_args:
-    disable_cache: true  # cache not really used so not wasting time to load it
-    cache_dir: null
+    disable_cache: false
+    cache_dir: cache_pseudolabel
     to_predict: val
     fold_index: 3
     dataset_kwargs:
