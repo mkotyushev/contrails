@@ -1,4 +1,5 @@
 import logging
+from unittest.mock import patch
 import timm
 import torch
 import torch.nn as nn
@@ -734,6 +735,40 @@ def build_segmentation_smp_old(
     return model
 
 
+from transformers import AutoBackbone
+from transformers.models.mask2former.modeling_mask2former import (
+    Mask2FormerPixelDecoder,
+    Mask2FormerPixelLevelModuleOutput,
+)
+
+class Mask2FormerPixelLevelModuleAnyBackbone(nn.Module):
+    def __init__(self, config: Mask2FormerConfig):
+        """
+        Pixel Level Module proposed in [Masked-attention Mask Transformer for Universal Image
+        Segmentation](https://arxiv.org/abs/2112.01527). It runs the input image through a backbone and a pixel
+        decoder, generating multi-scale feature maps and pixel embeddings.
+
+        Args:
+            config ([`Mask2FormerConfig`]):
+                The configuration used to instantiate this model.
+        """
+        super().__init__()
+
+        self.encoder = AutoBackbone.from_config(config.backbone_config)
+        self.decoder = Mask2FormerPixelDecoder(config, feature_channels=self.encoder.channels)
+
+    def forward(self, pixel_values: Tensor, output_hidden_states: bool = False) -> Mask2FormerPixelLevelModuleOutput:
+        backbone_features = self.encoder(pixel_values).feature_maps
+        decoder_output = self.decoder(backbone_features, output_hidden_states=output_hidden_states)
+
+        return Mask2FormerPixelLevelModuleOutput(
+            encoder_last_hidden_state=backbone_features[-1],
+            encoder_hidden_states=tuple(backbone_features) if output_hidden_states else None,
+            decoder_last_hidden_state=decoder_output.mask_features,
+            decoder_hidden_states=decoder_output.multi_scale_features,
+        )
+
+    
 def build_segmentation_hf(
     backbone_name, 
     architecture='upernet',
@@ -784,7 +819,7 @@ def build_segmentation_hf(
                     use_pretrained_backbone=True,
                     out_indices=[0, 1, 2, 3],
                 )
-                backbone = TimmBackbone(
+                backbone = TimmBackbone.from_pretrained(
                     backbone_config,
                 )
 
@@ -798,23 +833,69 @@ def build_segmentation_hf(
             # Load pretrained backbone explicitly
             model.backbone.load_state_dict(backbone.state_dict())
     elif architecture == 'mask2former':
-        # Only native full mask2former models
-        # or swin backbone (does not make sense to use it separately)
-        assert 'facebook/mask2former' in backbone_name, \
-            f'backbone_name must start with facebook/mask2former, got {backbone_name}'
-        model = Mask2FormerForUniversalSegmentation.from_pretrained(
-            backbone_name,
-            num_labels=1,
-            # num_queries=1,  # TODO check if num_queries=1 better than default
-            # carefully check 'size mismatch' warnings in logs 
-            # it should consist only decode_head and auxiliary_head
-            # missmatch due to different number of classes
-            ignore_mismatched_sizes=True,
-        )
+        if 'facebook/mask2former' in backbone_name:
+            # Native full mask2former models
+            model = Mask2FormerForUniversalSegmentation.from_pretrained(
+                backbone_name,
+                num_labels=1,
+                # num_queries=1,  # TODO check if num_queries=1 better than default
+                # carefully check 'size mismatch' warnings in logs 
+                # it should consist only decode_head and auxiliary_head
+                # missmatch due to different number of classes
+                ignore_mismatched_sizes=True,
+            )
+        else:
+            # Pretrained backbone with random initialization as per 
+            # https://huggingface.co/docs/transformers/main/en/model_doc/mask2former#usage
+            if backbone_name.startswith('facebook/convnextv2'):
+                # Well supported by upernet
+                backbone_config = ConvNextV2Config.from_pretrained(
+                    backbone_name,
+                    out_features=["stage1", "stage2", "stage3", "stage4"],
+                )
+                backbone = ConvNextV2Backbone.from_pretrained(
+                    backbone_name,
+                    out_features=["stage1", "stage2", "stage3", "stage4"],
+                )
+            else:
+                backbone_config = TimmBackboneConfig(
+                    backbone_name,
+                    use_pretrained_backbone=True,
+                    out_indices=[0, 1, 2, 3],
+                )
+                backbone = TimmBackbone.from_pretrained(
+                    backbone_name,
+                )
+
+            config = Mask2FormerConfig(
+                backbone_config=backbone_config, 
+                num_labels=1, 
+                use_auxiliary_head=False,
+            )
+
+            # Hack to use any backbone
+            with patch(
+                'transformers.models.mask2former.modeling_mask2former.Mask2FormerPixelLevelModule', 
+                Mask2FormerPixelLevelModuleAnyBackbone
+            ):
+                model = Mask2FormerForUniversalSegmentation(config)
+
+            # Load pretrained backbone explicitly
+            model.model.pixel_level_module.encoder.load_state_dict(backbone.state_dict())
     else:
         raise ValueError(f'unknown architecture {architecture} for HF')
     
-    model = HfWrapper(model, scale_factor=4 if architecture in ['segformer', 'mask2former'] else 1)
+    # Final scaling is different for different models
+    scale_factor = 1
+    if architecture == 'segformer':
+        scale_factor = 4
+    elif architecture == 'mask2former':
+        if 'facebook/mask2former' in backbone_name:
+            scale_factor = 4
+        else:
+            scale_factor = 2
+
+    model = HfWrapper(model, scale_factor=scale_factor)
 
     # Patch first conv from 3 to in_channels
     if in_channels != 3:

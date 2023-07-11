@@ -1,12 +1,12 @@
 trainer:
   deterministic: false
-  accumulate_grad_batches: 4
+  accumulate_grad_batches: 8
 model:
   init_args:
     library: hf
     architecture: mask2former
-    backbone_name: facebook/mask2former-swin-base-IN21k-ade-semantic
+    backbone_name: tf_efficientnetv2_m
     compile: true
 data:
   init_args:
-    batch_size: 16
+    batch_size: 8
