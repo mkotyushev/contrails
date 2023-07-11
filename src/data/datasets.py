@@ -340,9 +340,15 @@ class ContrailsDataset:
             mask = (mask * 255).astype(np.uint8)  # (H, W, 1)
             mask = mask[..., 0]  # (H, W)
 
-        # Get masks for all times
+        # Use gt labels if available, otherwise use pseudolabels (if available)
         if mask is None and pseudolabel_masks is not None:
+            logger.debug(f'Using pseudolabels for {record_dir} at time {time_idx}')
             mask = pseudolabel_masks
+        else:
+            if mask is None:
+                logger.debug(f'Mask is None for {record_dir} at time {time_idx}')
+            else:
+                logger.debug(f'Using gt labels for {record_dir} at time {time_idx}')
         
         # Prepare output
         output = {
