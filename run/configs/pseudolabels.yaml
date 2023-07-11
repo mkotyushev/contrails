@@ -1,0 +1,11 @@
+data:
+  init_args:
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: weighted
+      use_not_labeled: true
+      pseudolabels_path: ../data/pseudolabels/out-of-fold/npy
+      conversion_type: ash
+      quantize: true
+      stats_precomputed: false
+    cache_dir: cache_pseudolabels
