@@ -820,7 +820,7 @@ def build_segmentation_hf(
                     use_pretrained_backbone=True,
                     out_indices=[0, 1, 2, 3],
                 )
-                backbone = TimmBackbone.from_pretrained(
+                backbone = TimmBackbone(
                     backbone_config,
                 )
 
