@@ -229,8 +229,8 @@ class ContrailsDatamodule(LightningDataModule):
         # But to create proper cache reusable by all the folds, 
         # remove_pseudolabels_from_val_test need to be set to False
         # for create_cache.py script
+        val_test_dataset_kwargs = deepcopy(self.hparams.dataset_kwargs)
         if self.hparams.remove_pseudolabels_from_val_test:
-            val_test_dataset_kwargs = deepcopy(self.hparams.dataset_kwargs)
             val_test_dataset_kwargs['use_not_labeled'] = False
             val_test_dataset_kwargs['pseudolabels_path'] = None
 
