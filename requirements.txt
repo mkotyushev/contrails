@@ -113,7 +113,7 @@ matplotlib-inline==0.1.6
 mdurl==0.1.2
 memray==1.8.1
 mistune==2.0.5
---find-links https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
+--find-links https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.0/index.html
 mmcv==2.0.0
 mmdet==3.1.0
 mmengine==0.7.4
