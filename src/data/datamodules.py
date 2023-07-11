@@ -55,6 +55,7 @@ class ContrailsDatamodule(LightningDataModule):
         split_info_path: Optional[Path] = None,
         scale_factor: int = 1,
         to_predict: Literal['test', 'val', 'train'] = 'test',
+        remove_pseudolabels_from_val_test: bool = True,
     ):
         super().__init__()
 
@@ -223,9 +224,15 @@ class ContrailsDatamodule(LightningDataModule):
             )
 
         # Remove pseudolabels from val & test
-        val_test_dataset_kwargs = deepcopy(self.hparams.dataset_kwargs)
-        val_test_dataset_kwargs['use_not_labeled'] = False
-        val_test_dataset_kwargs['pseudolabels_path'] = None
+        # Note: for real training remove_pseudolabels_from_val_test should be 
+        # set to True to avoid biasing the model with pseudolabels.
+        # But to create proper cache reusable by all the folds, 
+        # remove_pseudolabels_from_val_test need to be set to False
+        # for create_cache.py script
+        if self.hparams.remove_pseudolabels_from_val_test:
+            val_test_dataset_kwargs = deepcopy(self.hparams.dataset_kwargs)
+            val_test_dataset_kwargs['use_not_labeled'] = False
+            val_test_dataset_kwargs['pseudolabels_path'] = None
 
         if self.val_dataset is None and val_record_dirs:
             self.val_dataset = ContrailsDataset(

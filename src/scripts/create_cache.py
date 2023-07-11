@@ -29,6 +29,9 @@ def cli_main():
         run=False,
     )
 
+    assert not cli.datamodule.hparams.remove_pseudolabels_from_val_test, \
+        "remove_pseudolabels_from_val_test should be False here to create full cache"
+
     cli.datamodule.setup()
     
     if cli.datamodule.val_dataset is not None:

@@ -9,3 +9,4 @@ data:
       quantize: true
       stats_precomputed: false
     cache_dir: cache_pseudolabels
+    remove_pseudolabels_from_val_test: true
