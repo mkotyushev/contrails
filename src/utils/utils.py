@@ -720,10 +720,10 @@ class UpsampleWrapper(nn.Module):
             self.postprocess = nn.Sequential(
                 nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
                 nn.BatchNorm2d(1),
-                nn.ReLU(inplace=True),
+                nn.LeakyReLU(inplace=True),
                 nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
                 nn.BatchNorm2d(1),
-                nn.ReLU(inplace=True),
+                nn.LeakyReLU(inplace=True),
                 nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
             )
         elif postprocess == 'erosion':
