@@ -124,7 +124,7 @@ model:
     grad_checkpointing: false
     compile: true
     lr: null  # needed for sweeps
-    postprocess: false
+    postprocess: null
 data:
   class_path: src.data.datamodules.ContrailsDatamodule
   init_args:

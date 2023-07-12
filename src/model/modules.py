@@ -1000,7 +1000,7 @@ class SegmentationModule(BaseModule):
         loss_name: str = 'bce=1.0',
         compile: bool = False,
         lr: float = 1e-3,
-        postprocess: bool = False,
+        postprocess: Literal['cnn', 'erosion', None] = None,
     ):
         super().__init__(
             optimizer_init=optimizer_init,

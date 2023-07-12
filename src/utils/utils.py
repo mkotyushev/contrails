@@ -30,6 +30,7 @@ from lightning.pytorch.callbacks import EarlyStopping, Callback, ModelCheckpoint
 from torch_ema import ExponentialMovingAverage
 
 from src.data.datasets import LABELED_TIME_INDEX, N_TIMES
+from src.utils.morphology import Erosion2d
 
 
 logger = logging.getLogger(__name__)
@@ -706,19 +707,27 @@ class FeatureExtractorWrapper(nn.Module):
 
 
 class UpsampleWrapper(nn.Module):
-    def __init__(self, model, scale_factor=4, postprocess=False):
+    def __init__(self, model, scale_factor=4, postprocess=None):
         super().__init__()
         self.model = model
-        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor) if scale_factor != 1 else nn.Identity()
-        self.cnn = nn.Sequential(
-            nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
-            nn.BatchNorm2d(1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
-            nn.BatchNorm2d(1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
-        ) if postprocess else nn.Identity()
+
+        self.upsampling = None
+        if scale_factor != 1:
+            self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor)
+        
+        self.postprocess = None
+        if postprocess == 'cnn':
+            self.postprocess = nn.Sequential(
+                nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
+                nn.BatchNorm2d(1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
+                nn.BatchNorm2d(1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
+            )
+        elif postprocess == 'erosion':
+            self.postprocess = Erosion2d(1, 1, 3, soft_max=False)
 
     def forward(self, x):
         # Get predictions
@@ -737,10 +746,12 @@ class UpsampleWrapper(nn.Module):
                 x, _ = x.masks_queries_logits.max(1, keepdim=True)
 
         # Upsample to original size
-        x = self.upsampling(x)
+        if self.upsampling is not None:
+            x = self.upsampling(x)
 
         # Postprocess
-        x = self.cnn(x)
+        if self.postprocess is not None:
+            x = self.postprocess(x)
 
         return x
 
