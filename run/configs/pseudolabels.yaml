@@ -1,5 +1,7 @@
 trainer:
   max_epochs: 8
+  check_val_every_n_epoch: null
+  val_check_interval: 0.125
 data:
   init_args:
     dataset_kwargs:
