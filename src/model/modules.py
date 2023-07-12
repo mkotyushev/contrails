@@ -1094,7 +1094,7 @@ class SegmentationModule(BaseModule):
         if pretrained_ckpt_path is not None:
             logger.info(f'Loading weights from {pretrained_ckpt_path}')
             checkpoint = torch.load(pretrained_ckpt_path)
-            self.load_state_dict(checkpoint['state_dict'], strict=False)
+            logger.info(str(self.load_state_dict(checkpoint['state_dict'], strict=False)))
 
     def compute_loss_preds(self, batch, *args, **kwargs):
         """Compute losses and predictions."""
