@@ -672,6 +672,7 @@ def build_segmentation_smp(
     architecture,
     in_channels=1, 
     pretrained=True,
+    postprocess=False,
 ):
     """Build segmentation model."""
     encoder_weights = "imagenet" if pretrained else None
@@ -684,6 +685,9 @@ def build_segmentation_smp(
         )
     else:
         raise ValueError(f'unknown architecture {architecture} for SMP')
+    
+    # For postprocessing
+    model = UpsampleWrapper(model, scale_factor=1, postprocess=postprocess)
 
     return model
 
@@ -696,6 +700,7 @@ def build_segmentation_smp_old(
     img_size=256,
     grad_checkpointing=False,
     pretrained=True,
+    postprocess=False,
 ):
     """Build segmentation model."""
     assert architecture == 'unet'
@@ -739,6 +744,9 @@ def build_segmentation_smp_old(
         upsampling=backbone_name_to_params[backbone_param_key]['upsampling'],
         decoder_attention_type=decoder_attention_type,
     )
+
+    # For postprocessing
+    model = UpsampleWrapper(model, scale_factor=1, postprocess=postprocess)
 
     return model
 
@@ -1036,6 +1044,7 @@ class SegmentationModule(BaseModule):
                 architecture=architecture,
                 in_channels=in_channels,
                 pretrained=pretrained,
+                postprocess=postprocess,
             )
         elif library == 'smp_old':
             self.model = build_segmentation_smp_old(
@@ -1046,6 +1055,7 @@ class SegmentationModule(BaseModule):
                 img_size=img_size,
                 grad_checkpointing=grad_checkpointing,
                 pretrained=pretrained,
+                postprocess=postprocess,
             )
         elif library == 'mmseg':
             self.model = build_segmentation_mmseg(

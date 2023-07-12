@@ -725,7 +725,7 @@ class UpsampleWrapper(nn.Module):
         x = self.model(x)
 
         if isinstance(x, torch.Tensor):
-            # eva or mmseg
+            # eva or mmseg or smp or smp_old
             pass
         else:
             # hf
