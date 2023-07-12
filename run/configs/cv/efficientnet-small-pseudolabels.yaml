@@ -1,0 +1,41 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - --config
+  - run/configs/save.yaml
+  - --config
+  - run/configs/pseudolabels.yaml
+  - ${args}
+method: grid
+parameters:
+  model.init_args.library:
+    distribution: constant
+    value: smp_old
+  model.init_args.architecture:
+    distribution: constant
+    value: unet
+  model.init_args.backbone_name:
+    distribution: constant
+    value: tf_efficientnet_b5.ns_jft_in1k
+  data.init_args.img_size:
+    distribution: constant
+    value: 1024
+  data.init_args.batch_size:
+    distribution: constant
+    value: 4
+  trainer.accumulate_grad_batches:
+    distribution: constant
+    value: 16
+  data.init_args.fold_index:
+    distribution: categorical
+    values:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
