@@ -42,7 +42,6 @@ from src.utils.mechanic import mechanize
 from src.utils.utils import (
     FeatureExtractorWrapper, 
     UpsampleWrapper,
-    HfWrapper,
     PredictionTargetPreviewAgg, 
     PredictionTargetPreviewGrid, 
     get_feature_channels, 
@@ -493,6 +492,7 @@ def build_segmentation_eva02(
     grad_checkpointing=False,
     img_size=384,
     xattn=False,
+    postprocess=False,
 ):
     assert architecture == 'upernet'
 
@@ -604,7 +604,7 @@ def build_segmentation_eva02(
     
     # Set grad checkpointing
     model.use_checkpoint = grad_checkpointing
-    model = UpsampleWrapper(model, scale_factor=4)
+    model = UpsampleWrapper(model, scale_factor=4, postprocess=postprocess)
 
     return model
 
@@ -620,6 +620,7 @@ def build_segmentation_mmseg(
     architecture,
     in_channels, 
     grad_checkpointing=False,
+    postprocess=False,
 ):
     assert (architecture, backbone_name) in mmseg_params, \
         f'unknown architecture {architecture} and ' \
@@ -661,7 +662,7 @@ def build_segmentation_mmseg(
     
     # Set grad checkpointing
     model.use_checkpoint = grad_checkpointing
-    model = UpsampleWrapper(model, scale_factor=4)
+    model = UpsampleWrapper(model, scale_factor=4, postprocess=postprocess)
 
     return model
 
@@ -776,6 +777,7 @@ def build_segmentation_hf(
     in_channels=1, 
     grad_checkpointing=False,
     pretrained=True,
+    postprocess=False,
 ):
     if grad_checkpointing:
         logger.warning(
@@ -896,7 +898,7 @@ def build_segmentation_hf(
         else:
             scale_factor = 2
 
-    model = HfWrapper(model, scale_factor=scale_factor)
+    model = UpsampleWrapper(model, scale_factor=scale_factor, postprocess=postprocess)
 
     # Patch first conv from 3 to in_channels
     if in_channels != 3:
@@ -990,6 +992,7 @@ class SegmentationModule(BaseModule):
         loss_name: str = 'bce=1.0',
         compile: bool = False,
         lr: float = 1e-3,
+        postprocess: bool = False,
     ):
         super().__init__(
             optimizer_init=optimizer_init,
@@ -1016,6 +1019,7 @@ class SegmentationModule(BaseModule):
                 grad_checkpointing=grad_checkpointing,
                 img_size=img_size,
                 xattn=not compile,  # xattn is not supported by torch.compile
+                postprocess=postprocess,
             )
         elif library == 'hf':
             self.model = build_segmentation_hf(
@@ -1024,6 +1028,7 @@ class SegmentationModule(BaseModule):
                 in_channels=in_channels,
                 grad_checkpointing=grad_checkpointing,
                 pretrained=pretrained,
+                postprocess=postprocess,
             )
         elif library == 'smp':
             self.model = build_segmentation_smp(
@@ -1048,6 +1053,7 @@ class SegmentationModule(BaseModule):
                 architecture=architecture,
                 in_channels=in_channels,
                 grad_checkpointing=grad_checkpointing,
+                postprocess=postprocess,
             )
         else:
             raise ValueError(f'unknown library {library}')

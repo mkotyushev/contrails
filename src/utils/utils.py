@@ -706,38 +706,42 @@ class FeatureExtractorWrapper(nn.Module):
 
 
 class UpsampleWrapper(nn.Module):
-    def __init__(self, model, scale_factor=4):
-        super().__init__()
-        self.model = model
-        self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor)
-    
-    def forward(self, x):
-        x = self.model(x)
-        # # Remove the channel (single class) dimension
-        # # (B, 1, H, W) -> (B, H, W)
-        # x = x.squeeze(1)
-        # Upsample to original size
-        x = self.upsampling(x)
-        return x
-
-
-class HfWrapper(nn.Module):
-    def __init__(self, model, scale_factor=4):
+    def __init__(self, model, scale_factor=4, postprocess=False):
         super().__init__()
         self.model = model
         self.upsampling = nn.UpsamplingBilinear2d(scale_factor=scale_factor) if scale_factor != 1 else nn.Identity()
-    
+        self.cnn = nn.Sequential(
+            nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
+            nn.BatchNorm2d(1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
+            nn.BatchNorm2d(1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(1, 1, kernel_size=3, padding=1, dilation=1, stride=1, bias=True, padding_mode='reflect'),
+        ) if postprocess else nn.Identity()
+
     def forward(self, x):
+        # Get predictions
         x = self.model(x)
-        
-        if 'logits' in x:
-            x = x['logits']
-        else:  # mask2former
-            x, _ = x.masks_queries_logits.max(1, keepdim=True)
-        
+
+        if isinstance(x, torch.Tensor):
+            # eva or mmseg
+            pass
+        else:
+            # hf
+            if 'logits' in x:
+                # segformer or upernet
+                x = x['logits']
+            else:
+                # mask2former
+                x, _ = x.masks_queries_logits.max(1, keepdim=True)
+
         # Upsample to original size
         x = self.upsampling(x)
-        
+
+        # Postprocess
+        x = self.cnn(x)
+
         return x
 
 
