@@ -492,7 +492,7 @@ def build_segmentation_eva02(
     grad_checkpointing=False,
     img_size=384,
     xattn=False,
-    postprocess=False,
+    postprocess=None,
 ):
     assert architecture == 'upernet'
 
@@ -620,7 +620,7 @@ def build_segmentation_mmseg(
     architecture,
     in_channels, 
     grad_checkpointing=False,
-    postprocess=False,
+    postprocess=None,
 ):
     assert (architecture, backbone_name) in mmseg_params, \
         f'unknown architecture {architecture} and ' \
@@ -672,7 +672,7 @@ def build_segmentation_smp(
     architecture,
     in_channels=1, 
     pretrained=True,
-    postprocess=False,
+    postprocess=None,
 ):
     """Build segmentation model."""
     encoder_weights = "imagenet" if pretrained else None
@@ -687,7 +687,8 @@ def build_segmentation_smp(
         raise ValueError(f'unknown architecture {architecture} for SMP')
     
     # For postprocessing
-    model = UpsampleWrapper(model, scale_factor=1, postprocess=postprocess)
+    if postprocess is not None:
+        model = UpsampleWrapper(model, scale_factor=1, postprocess=postprocess)
 
     return model
 
@@ -700,7 +701,7 @@ def build_segmentation_smp_old(
     img_size=256,
     grad_checkpointing=False,
     pretrained=True,
-    postprocess=False,
+    postprocess=None,
 ):
     """Build segmentation model."""
     assert architecture == 'unet'
@@ -746,7 +747,8 @@ def build_segmentation_smp_old(
     )
 
     # For postprocessing
-    model = UpsampleWrapper(model, scale_factor=1, postprocess=postprocess)
+    if postprocess is not None:
+        model = UpsampleWrapper(model, scale_factor=1, postprocess=postprocess)
 
     return model
 
@@ -785,7 +787,7 @@ def build_segmentation_hf(
     in_channels=1, 
     grad_checkpointing=False,
     pretrained=True,
-    postprocess=False,
+    postprocess=None,
 ):
     if grad_checkpointing:
         logger.warning(
