@@ -125,6 +125,7 @@ model:
     compile: true
     lr: null  # needed for sweeps
     postprocess: null
+    pretrained_ckpt_path: null
 data:
   class_path: src.data.datamodules.ContrailsDatamodule
   init_args:

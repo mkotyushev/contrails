@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 import timm
 import torch
 import torch.nn as nn
@@ -1003,6 +1004,7 @@ class SegmentationModule(BaseModule):
         compile: bool = False,
         lr: float = 1e-3,
         postprocess: Literal['cnn', 'erosion', None] = None,
+        pretrained_ckpt_path: Optional[Path] = None,
     ):
         super().__init__(
             optimizer_init=optimizer_init,
@@ -1087,6 +1089,12 @@ class SegmentationModule(BaseModule):
             do_tta=len(tta_params) > 0, 
             **tta_params
         )
+
+        # Load only weights from checkpoint if provided
+        if pretrained_ckpt_path is not None:
+            logger.info(f'Loading weights from {pretrained_ckpt_path}')
+            checkpoint = torch.load(pretrained_ckpt_path)
+            self.load_state_dict(checkpoint['state_dict'], strict=False)
 
     def compute_loss_preds(self, batch, *args, **kwargs):
         """Compute losses and predictions."""
