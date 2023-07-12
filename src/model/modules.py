@@ -792,7 +792,7 @@ def build_segmentation_hf(
             'grad_checkpointing is not supported for nvidia models, '
             'setting grad_checkpointing=False.'
         )
-    # TODO: fix pretrained not used
+    # TODO: fix pretrained not used for all the options
     if architecture == 'segformer':
         model = SegformerForSemanticSegmentation.from_pretrained(
             backbone_name,
@@ -827,7 +827,7 @@ def build_segmentation_hf(
             else:
                 backbone_config = TimmBackboneConfig(
                     backbone_name,
-                    use_pretrained_backbone=True,
+                    use_pretrained_backbone=pretrained,
                     out_indices=[0, 1, 2, 3],
                 )
                 backbone = TimmBackbone(
@@ -871,7 +871,7 @@ def build_segmentation_hf(
             else:
                 backbone_config = TimmBackboneConfig(
                     backbone_name,
-                    use_pretrained_backbone=True,
+                    use_pretrained_backbone=pretrained,
                     out_indices=[0, 1, 2, 3],
                 )
                 backbone = TimmBackbone.from_pretrained(
