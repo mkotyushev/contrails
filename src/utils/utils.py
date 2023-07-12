@@ -79,6 +79,12 @@ class MyLightningCLISweep(MyLightningCLI):
                 'accumulate_grad_batches': 1,
             },
 
+            # SMP old + Unet
+            'tf_efficientnet_b5.ns_jft_in1k': {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            },
+
             # SMP + Unet
             'timm-efficientnet-b5': {
                 'batch_size': 64,
