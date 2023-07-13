@@ -52,7 +52,7 @@ def main(args):
         assert np.all(np.isfinite(preds_per_record))
         
         if args.threshold is not None:
-            preds_per_record = (preds_per_record > args.threshold * 255)
+            preds_per_record = (preds_per_record > args.threshold * 255) * 255
         preds_per_record = preds_per_record.astype(np.uint8)  # (H, W, N_TIMES)
         np.save(str(args.output_dir / f'{record_id}.npy'), preds_per_record)
 
