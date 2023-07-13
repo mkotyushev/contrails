@@ -9,7 +9,7 @@ command:
   - --config
   - run/configs/save.yaml
   - --config
-  - run/configs/pseudolabels.yaml
+  - run/configs/pseudolabels-in-fold.yaml
   - ${args}
 method: grid
 parameters:
