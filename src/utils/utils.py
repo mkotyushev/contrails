@@ -713,9 +713,10 @@ class FeatureExtractorWrapper(nn.Module):
 
 
 class UpsampleWrapper(nn.Module):
-    def __init__(self, model, scale_factor=4, postprocess=None):
+    def __init__(self, model, n_frames=None, scale_factor=4, postprocess=None):
         super().__init__()
         self.model = model
+        self.n_frames = n_frames
 
         self.upsampling = None
         if scale_factor != 1:
@@ -736,9 +737,23 @@ class UpsampleWrapper(nn.Module):
             self.postprocess = Erosion2d(1, 1, 3, soft_max=False)
 
     def forward(self, x):
+        if self.n_frames is not None:
+            # To use albumentations, T dim is stacked to C dim
+            # unstack here and stack to N dim to use with video model
+            # (N, C * T, H, W) -> (N * T, C, H, W)
+            N, C_T, H, W = x.shape
+            assert C_T % self.n_frames == 0, \
+                f'Number of channels * frames for video {C_T} is not divisible by ' \
+                f'assumed number of frames {self.n_frames}.'
+            C = C_T // self.n_frames
+            x = x.view(N, C, self.n_frames, H, W)
+            x = x.permute(0, 2, 1, 3, 4).contiguous()
+            x = x.view(-1, C, H, W)
+        
         # Get predictions
         x = self.model(x)
 
+        video = False
         if isinstance(x, torch.Tensor):
             # eva or mmseg or smp or smp_old
             pass
@@ -748,16 +763,30 @@ class UpsampleWrapper(nn.Module):
                 # segformer or upernet
                 x = x['logits']
             else:
-                # mask2former
-                x, _ = x.masks_queries_logits.max(1, keepdim=True)
+                if x.masks_queries_logits.ndim == 4:
+                    # mask2former
+                    x, _ = x.masks_queries_logits.max(1, keepdim=True)
+                elif x.masks_queries_logits.ndim == 5:
+                    video = True
+                    # video_mask2former
+                    # Note: scaling is only spatial not temporal, so
+                    # not not keep dim 
+                    # (N, Q, T, H, W) -> (N, C = T, H, W)
+                    x, _ = x.masks_queries_logits.max(1, keepdim=False)
 
         # Upsample to original size
         if self.upsampling is not None:
             x = self.upsampling(x)
 
         # Postprocess
-        if self.postprocess is not None:
+        # TODO: make it work with video
+        if self.postprocess is not None and not video:
             x = self.postprocess(x)
+
+        # Permute video
+        if video:
+            # (N, C = T, H, W) -> (N, H, W, C = T)
+            x = x.permute(0, 2, 3, 1).contiguous()
 
         return x
 

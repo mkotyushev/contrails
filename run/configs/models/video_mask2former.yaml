@@ -1,0 +1,24 @@
+trainer:
+  deterministic: false
+  accumulate_grad_batches: 32
+model:
+  init_args:
+    library: hf
+    architecture: video_mask2former
+    backbone_name: tf_efficientnetv2_m
+    compile: true
+data:
+  init_args:
+    batch_size: 2
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: weighted
+      not_labeled_mode: video
+      pseudolabels_path: ../data/pseudolabels/in-fold/npy
+      conversion_type: ash
+      quantize: true
+      stats_precomputed: false
+    remove_pseudolabels_from_val_test: false
+    # TODO: support augs for video
+    randaugment_num_ops: 0
+    randaugment_magnitude: 0

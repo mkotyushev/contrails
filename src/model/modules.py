@@ -37,6 +37,7 @@ from mmengine.runner import load_checkpoint
 from mmengine.runner.checkpoint import _load_checkpoint, _load_checkpoint_to_model
 from mmengine.config import Config
 
+from src.data.datasets import N_TIMES, LABELED_TIME_INDEX
 from src.model.modeling_video_mask2former import (
     VideoMask2FormerForVideoSegmentation,
     VideoMask2FormerPixelDecoder,
@@ -959,6 +960,7 @@ def build_segmentation_hf(
                 num_labels=1, 
                 use_auxiliary_head=False,
             )
+            config.num_frames = N_TIMES
 
             # Hack to use any backbone
             with patch(
@@ -982,7 +984,16 @@ def build_segmentation_hf(
         else:
             scale_factor = 2
 
-    model = UpsampleWrapper(model, scale_factor=scale_factor, postprocess=postprocess)
+    n_frames = None
+    if architecture == 'video_mask2former':
+        n_frames = N_TIMES
+
+    model = UpsampleWrapper(
+        model, 
+        n_frames=n_frames, 
+        scale_factor=scale_factor, 
+        postprocess=postprocess,
+    )
 
     # Patch first conv from 3 to in_channels
     if in_channels != 3:
@@ -1169,12 +1180,18 @@ class SegmentationModule(BaseModule):
             checkpoint = torch.load(pretrained_ckpt_path)
             logger.info(str(self.load_state_dict(checkpoint['state_dict'], strict=False)))
 
-    def compute_loss_preds(self, batch, *args, **kwargs):
+    def compute_loss_preds(self, batch, only_labeled=False, *args, **kwargs):
         """Compute losses and predictions."""
         preds = self.tta(batch['image'])
         
         if 'mask' not in batch:
             return None, None, preds
+        
+        if preds.ndim == 4 and only_labeled:
+            # video_mask2former, on validation use only one truly labeled frame
+            # and not pseudo-labeled
+            preds = preds[..., LABELED_TIME_INDEX]
+            batch['mask'] = batch['mask'][..., LABELED_TIME_INDEX]
 
         losses = {}
         for loss_name, loss_weight in parse_loss_name(self.hparams.loss_name).items():
@@ -1235,7 +1252,7 @@ class SegmentationModule(BaseModule):
         self.cat_metrics = None
 
     def training_step(self, batch, batch_idx, **kwargs):
-        total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
+        total_loss, losses, preds = self.compute_loss_preds(batch, only_labeled=False, **kwargs)
         for loss_name, loss in losses.items():
             self.log(
                 f'tl_{loss_name}', 
@@ -1296,7 +1313,7 @@ class SegmentationModule(BaseModule):
     
     def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
         loss_prefix = 'vl'
-        total_loss, losses, preds = self.compute_loss_preds(batch, **kwargs)
+        total_loss, losses, preds = self.compute_loss_preds(batch, only_labeled=True, **kwargs)
         assert dataloader_idx is None or dataloader_idx == 0, 'Only one val dataloader is supported.'
         for loss_name, loss in losses.items():
             self.log(
@@ -1348,7 +1365,7 @@ class SegmentationModule(BaseModule):
     def predict_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
         # Prevent storing predictions in _PredictionLoop._predict_step
         self.trainer.predict_loop.return_predictions = False
-        _, _, preds = self.compute_loss_preds(batch, **kwargs)
+        _, _, preds = self.compute_loss_preds(batch, only_labeled=True, **kwargs)
         return preds
 
     def on_train_epoch_end(self) -> None:
@@ -1425,6 +1442,12 @@ class SegmentationModule(BaseModule):
                 torch.tensor(1.0, device=y_pred.device)
             ).long()
             y, y_pred = self.remove_nans(y, y_pred)
+
+        if y_pred.ndim == 4:
+            # video_mask2former: select only single frame
+            y_pred = y_pred[..., LABELED_TIME_INDEX]
+            if y is not None:
+                y = y[..., LABELED_TIME_INDEX]
         
         return y, y_pred
     

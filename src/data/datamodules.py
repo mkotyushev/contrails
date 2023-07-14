@@ -114,10 +114,16 @@ class ContrailsDatamodule(LightningDataModule):
                 always_apply=True,
             )
 
+        aug_transform = []
+        if self.hparams.randaugment_num_ops > 0:
+            aug_transform = [
+                RandAugment(self.hparams.randaugment_num_ops, self.hparams.randaugment_magnitude),
+            ]
+
         self.train_transform = A.Compose(
             [
                 train_resize_transform,
-                RandAugment(self.hparams.randaugment_num_ops, self.hparams.randaugment_magnitude),
+                *aug_transform,
                 A.Normalize(
                     max_pixel_value=255.0,
                     mean=self.train_volume_mean,

@@ -887,7 +887,7 @@ class VideoMask2Former3DSinePositionEmbedding(nn.Module):
             eps = 1e-6
             y_embed = y_embed / (y_embed[:, :, -1:, :] + eps) * self.scale
             x_embed = x_embed / (x_embed[:, :, :, -1:] + eps) * self.scale
-            z_embed = z_embed / (z_embed[:, -1, :, :] + eps) * self.scale
+            z_embed = z_embed / (z_embed[:, -1:, :, :] + eps) * self.scale
 
         dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=hidden_states.device)
         dim_t = self.temperature ** (2 * torch.div(dim_t, 2, rounding_mode="floor") / self.num_pos_feats)
@@ -2123,7 +2123,7 @@ class VideoMask2FormerTransformerModule(nn.Module):
         self.level_embed = nn.Embedding(self.num_feature_levels, hidden_dim)
 
         # During training, each video clip is composed of 2 frames in order to make the training much more efficient
-        self.num_frames = 2
+        self.num_frames = config.num_frames
 
     def forward(
         self,
@@ -2573,8 +2573,9 @@ class VideoMask2FormerForVideoSegmentation(VideoMask2FormerPreTrainedModel):
         if not output_auxiliary_logits:
             auxiliary_logits = None
 
-        # [batch_size, num_queries, num_frames, height, width] -> [num_queries, num_frames, height, width]
-        mask_logits = mask_logits[0]
+        # TODO: check if it is a correct way to handle num_frames != 2
+        # # [batch_size, num_queries, num_frames, height, width] -> [num_queries, num_frames, height, width]
+        # mask_logits = mask_logits[0]
 
         output = VideoMask2FormerForVideoSegmentationOutput(
             loss=loss,

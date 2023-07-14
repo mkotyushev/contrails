@@ -353,10 +353,18 @@ class ContrailsDataset:
                 logger.debug(f'Mask is None for {record_dir} at time {time_idx}')
             else:
                 logger.debug(f'Using gt labels for {record_dir} at time {time_idx}')
+
+        # Stack frames to channel dimension for transfroms
+        if image.ndim == 4:
+            image = image.reshape(
+                image.shape[0], 
+                image.shape[1], 
+                image.shape[2] * image.shape[3]
+            )  # (H, W, C, T) -> (H, W, C * T)
         
         # Prepare output
         output = {
-            'image': image,  # (H, W, C, T) or (H, W, C)
+            'image': image,  # (H, W, C' = C * T) or (H, W, C)
             'mask': mask,  # (H, W, T) or (H, W)
             'path': str(record_dir),
             'time_idx': time_idx,
