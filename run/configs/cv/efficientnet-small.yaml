@@ -11,6 +11,12 @@ command:
   - ${args}
 method: grid
 parameters:
+  model.init_args.library:
+    distribution: constant
+    value: smp_old
+  model.init_args.architecture:
+    distribution: constant
+    value: unet
   model.init_args.backbone_name:
     distribution: constant
     value: tf_efficientnet_b5.ns_jft_in1k
@@ -23,6 +29,9 @@ parameters:
   trainer.max_epochs:
     distribution: constant
     value: 64
+  data.init_args.fold_index_outer:
+    distribution: constant
+    value: 0
   data.init_args.fold_index:
     distribution: categorical
     values:
