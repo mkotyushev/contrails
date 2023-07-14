@@ -826,11 +826,6 @@ def build_segmentation_hf(
     pretrained=True,
     postprocess=None,
 ):
-    if grad_checkpointing:
-        logger.warning(
-            'grad_checkpointing is not supported for nvidia models, '
-            'setting grad_checkpointing=False.'
-        )
     # TODO: fix pretrained not used for all the options
     if architecture == 'segformer':
         model = SegformerForSemanticSegmentation.from_pretrained(
@@ -973,6 +968,20 @@ def build_segmentation_hf(
             model.model.pixel_level_module.encoder.load_state_dict(backbone.state_dict())
     else:
         raise ValueError(f'unknown architecture {architecture} for HF')
+    
+    if hasattr(model, 'gradient_checkpointing'):
+        model.gradient_checkpointing = grad_checkpointing
+    elif (
+        hasattr(model, 'transformer_module') and 
+        hasattr(model.transformer_module, 'decoder') and 
+        hasattr(model.transformer_module.decoder, 'gradient_checkpointing')
+    ):
+        model.transformer_module.decoder.gradient_checkpointing = grad_checkpointing
+    else:
+        logger.warning(
+            'grad_checkpointing is not supported for this model, '
+            'using grad_checkpointing=False.'
+        )
     
     # Final scaling is different for different models
     scale_factor = 1

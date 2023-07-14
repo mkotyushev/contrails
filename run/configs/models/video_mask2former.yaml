@@ -1,6 +1,6 @@
 trainer:
   deterministic: false
-  accumulate_grad_batches: 32
+  accumulate_grad_batches: 64
 model:
   init_args:
     library: hf
@@ -9,7 +9,7 @@ model:
     compile: true
 data:
   init_args:
-    batch_size: 2
+    batch_size: 1
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: weighted
