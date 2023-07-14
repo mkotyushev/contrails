@@ -18,6 +18,7 @@ data:
       conversion_type: ash
       quantize: true
       stats_precomputed: false
+    cache_dir: cache_pseudolabels
     remove_pseudolabels_from_val_test: false
     # TODO: support augs for video
     randaugment_num_ops: 0
