@@ -851,11 +851,21 @@ class CacheDictWithSave(dict):
             assert len(self) >= self.total_expected_records, \
                 f'Cache loaded from {self.cache_save_path} has {len(self)} records, ' \
                 f'but {self.total_expected_records} were expected.'
-            if not_labeled_mode:
-                for time_idx in range(N_TIMES):
-                    assert all((time_idx, d) in self for d in record_dirs)
-            else:
-                assert all((LABELED_TIME_INDEX, d) in self for d in record_dirs)
+            
+            # Check all the records are in the cache
+            if not_labeled_mode is None:
+                # Only labeled
+                time_indices = [LABELED_TIME_INDEX]
+            elif not_labeled_mode == 'video':
+                # All, each record is full video
+                # so no time index is needed
+                time_indices = [None]
+            elif not_labeled_mode == 'single':
+                # All, each record is single frame
+                time_indices = range(N_TIMES)
+
+            for time_idx in time_indices:
+                assert all((time_idx, d) in self for d in record_dirs)
 
     def __setitem__(self, index, value):
         # Hack to allow setting items in joblib.load()
