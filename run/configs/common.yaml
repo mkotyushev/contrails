@@ -144,7 +144,7 @@ data:
     data_dirs_test: null
     num_folds: 6
     fold_index: 0
-    fold_index_outer: 0
+    fold_index_outer: null
     img_size: 256
     random_state: 0
     randaugment_num_ops: 3
