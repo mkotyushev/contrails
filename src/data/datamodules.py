@@ -262,6 +262,12 @@ class ContrailsDatamodule(LightningDataModule):
                 **val_test_dataset_kwargs,
             )
 
+        logger.info(
+            f'len(train_dataset): {len(self.train_dataset) if self.train_dataset is not None else None}, '
+            f'len(val_dataset): {len(self.val_dataset) if self.val_dataset is not None else None}, '
+            f'len(test_dataset): {len(self.test_dataset) if self.test_dataset is not None else None}'
+        )
+
     def reset_transforms(self):
         self.build_transforms()
 
