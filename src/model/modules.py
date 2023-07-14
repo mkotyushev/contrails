@@ -37,6 +37,11 @@ from mmengine.runner import load_checkpoint
 from mmengine.runner.checkpoint import _load_checkpoint, _load_checkpoint_to_model
 from mmengine.config import Config
 
+from src.model.modeling_video_mask2former import (
+    VideoMask2FormerForVideoSegmentation,
+    VideoMask2FormerPixelDecoder,
+    VideoMask2FormerPixelLevelModuleOutput,
+)
 from src.model.smp_old import UnetOld
 from src.data.transforms import Tta
 from src.utils.mechanic import mechanize
@@ -754,6 +759,36 @@ def build_segmentation_smp_old(
     return model
 
 
+class VideoMask2FormerPixelLevelModuleAnyBackbone(nn.Module):
+    def __init__(self, config: Mask2FormerConfig):
+        """
+        Pixel Level Module proposed in [Masked-attention Mask Transformer for Universal Image
+        Segmentation](https://arxiv.org/abs/2112.01527). It runs the input image through a backbone and a pixel
+        decoder, generating multi-scale feature maps and pixel embeddings.
+
+        Args:
+            config ([`Mask2FormerConfig`]):
+                The configuration used to instantiate this model.
+        """
+        super().__init__()
+
+        self.encoder = AutoBackbone.from_config(config.backbone_config)
+        self.decoder = VideoMask2FormerPixelDecoder(config, feature_channels=self.encoder.channels)
+
+    def forward(
+        self, pixel_values: Tensor, output_hidden_states: bool = False
+    ) -> VideoMask2FormerPixelLevelModuleOutput:
+        backbone_features = self.encoder(pixel_values).feature_maps
+        decoder_output = self.decoder(backbone_features, output_hidden_states=output_hidden_states)
+
+        return VideoMask2FormerPixelLevelModuleOutput(
+            encoder_last_hidden_state=backbone_features[-1],
+            encoder_hidden_states=tuple(backbone_features) if output_hidden_states else None,
+            decoder_last_hidden_state=decoder_output.mask_features,
+            decoder_hidden_states=decoder_output.multi_scale_features,
+        )
+
+
 class Mask2FormerPixelLevelModuleAnyBackbone(nn.Module):
     def __init__(self, config: Mask2FormerConfig):
         """
@@ -896,6 +931,44 @@ def build_segmentation_hf(
 
             # Load pretrained backbone explicitly
             model.model.pixel_level_module.encoder.load_state_dict(backbone.state_dict())
+    elif architecture == 'video_mask2former':
+        if 'shivi/video-mask2former' in backbone_name:
+            # Native full video mask2former models
+            model = VideoMask2FormerForVideoSegmentation.from_pretrained(
+                backbone_name,
+                num_labels=1,
+                # num_queries=1,  # TODO check if num_queries=1 better than default
+                # carefully check 'size mismatch' warnings in logs 
+                # it should consist only decode_head and auxiliary_head
+                # missmatch due to different number of classes
+                ignore_mismatched_sizes=True,
+            )
+        else:
+            # Pretrained backbone with random initialization as per 
+            backbone_config = TimmBackboneConfig(
+                backbone_name,
+                use_pretrained_backbone=pretrained,
+                out_indices=[0, 1, 2, 3],
+            )
+            backbone = TimmBackbone.from_pretrained(
+                backbone_name,
+            )
+
+            config = Mask2FormerConfig(
+                backbone_config=backbone_config, 
+                num_labels=1, 
+                use_auxiliary_head=False,
+            )
+
+            # Hack to use any backbone
+            with patch(
+                'src.model.modeling_video_mask2former.VideoMask2FormerPixelLevelModule', 
+                VideoMask2FormerPixelLevelModuleAnyBackbone
+            ):
+                model = VideoMask2FormerForVideoSegmentation(config)
+
+            # Load pretrained backbone explicitly
+            model.model.pixel_level_module.encoder.load_state_dict(backbone.state_dict())
     else:
         raise ValueError(f'unknown architecture {architecture} for HF')
     
@@ -903,8 +976,8 @@ def build_segmentation_hf(
     scale_factor = 1
     if architecture == 'segformer':
         scale_factor = 4
-    elif architecture == 'mask2former':
-        if 'facebook/mask2former' in backbone_name:
+    elif 'mask2former' in architecture:
+        if 'facebook/mask2former' in backbone_name or 'shivi/video-mask2former' in backbone_name:
             scale_factor = 4
         else:
             scale_factor = 2
@@ -980,7 +1053,7 @@ class SegmentationModule(BaseModule):
     def __init__(
         self, 
         library: Literal['smp_old', 'smp', 'hf', 'eva', 'mmseg'] = 'smp',
-        architecture: Literal['unet', 'upernet', 'segformer', 'mask2former'] = 'unet',
+        architecture: Literal['unet', 'upernet', 'segformer', 'mask2former', 'video_mask2former'] = 'unet',
         backbone_name: str = 'timm-efficientnet-b5',
         in_channels: int = 6,
         log_preview_every_n_epochs: int = 10,
