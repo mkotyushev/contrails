@@ -208,10 +208,10 @@ class ContrailsDatamodule(LightningDataModule):
 
         # Create shared cache.
         if not self.hparams.disable_cache:
-            use_not_labeled = self.hparams.dataset_kwargs.get('use_not_labeled', False)
+            not_labeled_mode = self.hparams.dataset_kwargs.get('not_labeled_mode', False)
             self.make_cache(
                 record_dirs=train_record_dirs + val_record_dirs + test_record_dirs,
-                use_not_labeled=use_not_labeled
+                not_labeled_mode=not_labeled_mode
             )
 
         # Train
@@ -235,8 +235,9 @@ class ContrailsDatamodule(LightningDataModule):
         # for create_cache.py script
         val_test_dataset_kwargs = deepcopy(self.hparams.dataset_kwargs)
         if self.hparams.remove_pseudolabels_from_val_test:
-            val_test_dataset_kwargs['use_not_labeled'] = False
-            val_test_dataset_kwargs['pseudolabels_path'] = None
+            if val_test_dataset_kwargs['not_labeled_mode'] == 'single':
+                val_test_dataset_kwargs['not_labeled_mode'] = False
+                val_test_dataset_kwargs['pseudolabels_path'] = None
 
         if self.val_dataset is None and val_record_dirs:
             self.val_dataset = ContrailsDataset(
@@ -279,7 +280,7 @@ class ContrailsDatamodule(LightningDataModule):
         if self.test_dataset is not None:
             self.test_dataset.transform = self.test_transform
 
-    def make_cache(self, record_dirs, use_not_labeled) -> None:
+    def make_cache(self, record_dirs, not_labeled_mode) -> None:
         cache_save_path = None
         if self.hparams.cache_dir is not None:
             # Name the cache with md5 hash of 
@@ -298,7 +299,7 @@ class ContrailsDatamodule(LightningDataModule):
         self.cache = mp.Manager().CacheDictWithSaveProxy(
             record_dirs=record_dirs,
             cache_save_path=cache_save_path,
-            use_not_labeled=use_not_labeled,
+            not_labeled_mode=not_labeled_mode,
         )
 
         if cache_save_path is None:

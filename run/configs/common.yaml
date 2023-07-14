@@ -144,7 +144,7 @@ data:
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: weighted
-      use_not_labeled: false
+      not_labeled_mode: null
       pseudolabels_path: null
       conversion_type: ash
       quantize: true

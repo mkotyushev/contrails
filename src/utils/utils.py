@@ -805,11 +805,11 @@ def contrails_collate_fn(batch):
 
 class CacheDictWithSave(dict):
     """Cache dict that saves itself to disk when full."""
-    def __init__(self, record_dirs, cache_save_path: Optional[Path] = None, use_not_labeled: bool = False, *args, **kwargs):
-        if use_not_labeled:
-            self.total_expected_records = len(record_dirs) * N_TIMES
-        else:
+    def __init__(self, record_dirs, cache_save_path: Optional[Path] = None, not_labeled_mode: bool = False, *args, **kwargs):
+        if not_labeled_mode is None or not_labeled_mode == 'video':
             self.total_expected_records = len(record_dirs)
+        elif not_labeled_mode == 'single':
+            self.total_expected_records = len(record_dirs) * N_TIMES
 
         self.cache_save_path = cache_save_path
         self.cache_already_on_disk = False
@@ -822,7 +822,7 @@ class CacheDictWithSave(dict):
             assert len(self) >= self.total_expected_records, \
                 f'Cache loaded from {self.cache_save_path} has {len(self)} records, ' \
                 f'but {self.total_expected_records} were expected.'
-            if use_not_labeled:
+            if not_labeled_mode:
                 for time_idx in range(N_TIMES):
                     assert all((time_idx, d) in self for d in record_dirs)
             else:
