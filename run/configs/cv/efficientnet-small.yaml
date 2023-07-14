@@ -20,6 +20,9 @@ parameters:
   model.init_args.backbone_name:
     distribution: constant
     value: tf_efficientnet_b5.ns_jft_in1k
+  data.init_args.img_size:
+    distribution: constant
+    value: 1024
   data.init_args.batch_size:
     distribution: constant
     value: 4
