@@ -34,8 +34,9 @@ class ContrailsDatamodule(LightningDataModule):
         self,
         data_dirs: List[Path] | Path = '/workspace/data/train',
         data_dirs_test: Optional[List[Path] | Path] = None,	
-        num_folds: Optional[int] = 5,
+        num_folds: Optional[int] = 6,
         fold_index: Optional[int] = None,
+        fold_index_outer: Optional[int] = None,
         random_state: int = 0,
         img_size: int = 256,
         dataset_kwargs: Optional[dict] = None,
@@ -178,27 +179,30 @@ class ContrailsDatamodule(LightningDataModule):
     def setup(self, stage: str = None) -> None:
         self.build_transforms()
 
-        # K-fold split or full train
-        train_record_dirs, val_record_dirs = [], []
+        # Split on train, val and test
+        train_record_dirs, val_record_dirs, test_record_dirs = [], [], []
         if self.hparams.data_dirs is not None:
             # List all dirs in each data_dir
             dirs = []
             for data_dir in self.hparams.data_dirs:
                 dirs += [path for path in sorted(data_dir.iterdir()) if path.is_dir()]
             
-            if self.hparams.fold_index is not None:
-                (
-                    train_record_dirs, \
-                    val_record_dirs, 
-                    train_is_mask_empty, 
-                    _,
-                ) = self.split_train_val(dirs)
-            else:
-                train_record_dirs = dirs
+            (
+                train_record_dirs, \
+                val_record_dirs, 
+                test_record_dirs, 
+                train_is_mask_empty, 
+                *_,
+            ) = self.split_train_val_test(dirs)
 
-        # List all dirs in each data_dir
-        test_record_dirs = []
+        # Use test dirs if given
         if self.hparams.data_dirs_test is not None:
+            if self.hparams.fold_index_outer is not None:
+                logger.warning(
+                    f'Using test data_dirs_test instead of '
+                    f'fold_index_outer {self.hparams.fold_index_outer}'
+                )
+            test_record_dirs = []
             for data_dir in self.hparams.data_dirs_test:
                 test_record_dirs += [path for path in data_dir.iterdir() if path.is_dir()]
 
@@ -328,7 +332,7 @@ class ContrailsDatamodule(LightningDataModule):
             }
             yaml.dump(cache_info, f, default_flow_style=False)
     
-    def split_train_val(self, dirs):
+    def split_train_val_test(self, dirs):
         # Load split info from file
         df_full = pd.read_csv(self.hparams.split_info_path)
         df_full['path'] = df_full['path'].astype(str)
@@ -352,28 +356,93 @@ class ContrailsDatamodule(LightningDataModule):
             ]
             is_mask_empty = [False] * len(dirs)
 
-        # Split train dirs to train and val
-        # stratified by mask_sum_qcut_code
-        # and grouped by spatial set_id
-        kfold = StratifiedGroupKFold(
-            n_splits=self.hparams.num_folds,
-            shuffle=True,
-            random_state=self.hparams.random_state,
-        )
-        for i, (train_index, val_index) in enumerate(
-            kfold.split(
-                df, 
-                df['mask_sum_qcut_code'], 
-                df['set_id_spatial']
+        train_record_dirs, val_record_dirs, test_record_dirs = [], [], []
+        train_is_mask_empty, val_is_mask_empty, test_is_mask_empty = [], [], []
+        if self.hparams.fold_index_outer is None:
+            if self.hparams.fold_index is None:
+                # Simply use all the dirs as train
+                train_record_dirs = dirs
+                train_is_mask_empty = is_mask_empty
+            else:
+                # Split train dirs to train and val
+                # stratified by mask_sum_qcut_code
+                # and grouped by spatial set_id
+                # and num_folds folds
+                kfold = StratifiedGroupKFold(
+                    n_splits=self.hparams.num_folds,
+                    shuffle=True,
+                    random_state=self.hparams.random_state,
+                )
+                for i, (train_index, val_index) in enumerate(
+                    kfold.split(
+                        df, 
+                        df['mask_sum_qcut_code'], 
+                        df['set_id_spatial']
+                    )
+                ):
+                    if i == self.hparams.fold_index:
+                        train_record_dirs = [dirs[i] for i in train_index]
+                        val_record_dirs = [dirs[i] for i in val_index]
+                        train_is_mask_empty = [is_mask_empty[i] for i in train_index]
+                        val_is_mask_empty = [is_mask_empty[i] for i in val_index]
+                        break
+        else:
+            # Split train dirs to train + val and test
+            # stratified by mask_sum_qcut_code
+            # and grouped by spatial set_id
+            # and num_folds folds.
+            
+            # Then split train + val on train and val
+            # using the same stratification scheme
+            # and num_folds - 1 folds.
+            kfold_outer = StratifiedGroupKFold(
+                n_splits=self.hparams.num_folds,
+                shuffle=True,
+                random_state=self.hparams.random_state,
             )
-        ):
-            if i == self.hparams.fold_index:
-                train_record_dirs = [dirs[i] for i in train_index]
-                val_record_dirs = [dirs[i] for i in val_index]
-                train_is_mask_empty = [is_mask_empty[i] for i in train_index]
-                val_is_mask_empty = [is_mask_empty[i] for i in val_index]
-                break
+            for i, (train_val_index, test_index) in enumerate(
+                kfold_outer.split(
+                    df, 
+                    df['mask_sum_qcut_code'], 
+                    df['set_id_spatial']
+                )
+            ):
+                if i == self.hparams.fold_index_outer:
+                    train_val_record_dirs = [dirs[i] for i in train_val_index]
+                    test_record_dirs = [dirs[i] for i in test_index]
+                    train_val_is_mask_empty = [is_mask_empty[i] for i in train_val_index]
+                    test_is_mask_empty = [is_mask_empty[i] for i in test_index]
 
+                    if self.hparams.fold_index is None:
+                        # Use all the train + val as train
+                        train_record_dirs = train_val_record_dirs
+                        train_is_mask_empty = train_val_is_mask_empty
+                        break
+
+                    # Split train + val on train and val
+                    df_outer = df.iloc[train_val_index].copy()
+                    
+                    kfold_inner = StratifiedGroupKFold(
+                        n_splits=self.hparams.num_folds - 1,
+                        shuffle=True,
+                        random_state=self.hparams.random_state,
+                    )
+                    for j, (train_index, val_index) in enumerate(
+                        kfold_inner.split(
+                            df_outer, 
+                            df_outer['mask_sum_qcut_code'], 
+                            df_outer['set_id_spatial']
+                        )
+                    ):
+                        if j == self.hparams.fold_index:
+                            train_record_dirs = [train_val_record_dirs[i] for i in train_index]
+                            val_record_dirs = [train_val_record_dirs[i] for i in val_index]
+                            train_is_mask_empty = [train_val_is_mask_empty[i] for i in train_index]
+                            val_is_mask_empty = [train_val_is_mask_empty[i] for i in val_index]
+                            break
+                    break
+        
+        # Drop empty masks from train
         if self.hparams.empty_mask_strategy == 'drop_only_train':
             train_record_dirs = [
                 d for d, is_empty in zip(train_record_dirs, train_is_mask_empty) 
@@ -381,7 +450,14 @@ class ContrailsDatamodule(LightningDataModule):
             ]
             train_is_mask_empty = [False] * len(train_record_dirs)
 
-        return train_record_dirs, val_record_dirs, train_is_mask_empty, val_is_mask_empty
+        return (
+            train_record_dirs, 
+            val_record_dirs, 
+            test_record_dirs, 
+            train_is_mask_empty, 
+            val_is_mask_empty, 
+            test_is_mask_empty,
+        )
 
     def train_dataloader(self) -> DataLoader:
         sampler, shuffle, drop_last = None, True, True
