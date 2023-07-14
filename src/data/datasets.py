@@ -167,7 +167,7 @@ class ContrailsDataset:
         *,
         band_ids: Optional[Tuple[int]] = None,
         mask_type: Literal['voting50', 'mean', 'weighted', None] = 'voting50',
-        use_not_labeled: bool = False,
+        not_labeled_mode: Literal[None, 'single', 'video'] = None,
         pseudolabels_path: Optional[Path] = None,
         conversion_type: Literal[
             'ash', 
@@ -193,11 +193,11 @@ class ContrailsDataset:
         assert mask_type is None or mask_type in ('voting50', 'mean', 'weighted')
         self.mask_type = mask_type
 
-        if use_not_labeled and mask_type is not None:
+        if not_labeled_mode is not None and mask_type is not None:
             assert pseudolabels_path is not None, \
-                'pseudolabels_path must be provided if use_not_labeled=True ' \
+                'pseudolabels_path must be provided if not_labeled_mode is not None ' \
                 'and mask_type is not None'
-        self.use_not_labeled = use_not_labeled
+        self.not_labeled_mode = not_labeled_mode
         if pseudolabels_path is not None and isinstance(pseudolabels_path, str):
             pseudolabels_path = Path(pseudolabels_path)
         self.pseudolabels_path = pseudolabels_path
@@ -226,7 +226,7 @@ class ContrailsDataset:
         self.shared_cache = shared_cache
     
     def __len__(self):
-        if self.use_not_labeled:
+        if self.not_labeled_mode == 'single':
             return len(self.record_dirs) * N_TIMES
         return len(self.record_dirs)
 
@@ -239,7 +239,9 @@ class ContrailsDataset:
             data[band_id] = np.load(
                 record_dir / f'band_{band_id:02}.npy',
                 mmap_mode='r' if self.mmap else None
-            )[..., time_idx]
+            )  # (H, W, C, T)
+            if time_idx is not None:
+                data[band_id] = data[band_id][..., time_idx]  # (H, W, C)
 
         # Convert to numpy array
         image = get_images(
@@ -247,7 +249,7 @@ class ContrailsDataset:
             type_=self.conversion_type, 
             quantize=self.quantize,
             precomputed=self.stats_precomputed,
-        )  # (H, W, C, T)
+        )  # (H, W, C, T) or (H, W, C)
         
         # Load masks (if available)
         human_pixel_masks = None
@@ -275,13 +277,15 @@ class ContrailsDataset:
         record_id = record_dir.name
         if (
             self.mask_type is not None and
-            self.use_not_labeled and 
+            self.not_labeled_mode is not None and 
             self.pseudolabels_path is not None and 
             (self.pseudolabels_path / f'{record_id}.npy').exists()
         ):
             pseudolabel_masks = np.load(
                 self.pseudolabels_path / f'{record_id}.npy'
-            )[..., time_idx]  # (H, W)
+            )  # (H, W, T)
+            if time_idx is not None:
+                pseudolabel_masks = pseudolabel_masks[..., time_idx]  # (H, W)
         
         # Get single mask
         mask = None
@@ -352,27 +356,29 @@ class ContrailsDataset:
         
         # Prepare output
         output = {
-            'image': image,  # (H, W, C)
-            'mask': mask,  # (H, W)
+            'image': image,  # (H, W, C, T) or (H, W, C)
+            'mask': mask,  # (H, W, T) or (H, W)
             'path': str(record_dir),
-            'time_idx': time_idx if self.use_not_labeled else LABELED_TIME_INDEX,
+            'time_idx': time_idx,
         }
         
         return output
     
     def _get_item_cached(self, idx):
         # Get path and indices
-        if self.use_not_labeled:
-            record_idx = idx // N_TIMES
-        else:
+        if self.not_labeled_mode is None or self.not_labeled_mode == 'video':
             record_idx = idx
+        elif self.not_labeled_mode == 'single':
+            record_idx = idx // N_TIMES
         record_dir = self.record_dirs[record_idx]
 
         # Get path and indices
-        if self.use_not_labeled:
+        if self.not_labeled_mode is None:
+            time_idx = LABELED_TIME_INDEX  # only labeled index is loaded
+        elif self.not_labeled_mode == 'single':
             time_idx = idx % N_TIMES
         else:
-            time_idx = LABELED_TIME_INDEX  # only single time index is loaded
+            time_idx = None
         
         # Get item from cache or load it
         if self.shared_cache is not None and (time_idx, record_dir) in self.shared_cache:
