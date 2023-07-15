@@ -10,6 +10,10 @@ model:
     compile: true
 data:
   init_args:
+    # override default 6 folds 4 + 1 + 1
+    # to load trained single image model on 5 folds 4 + 1
+    # with same train / val split
+    num_folds: 5
     batch_size: 2
     dataset_kwargs:
       band_ids: [11, 14, 15]
