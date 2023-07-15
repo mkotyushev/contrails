@@ -5,7 +5,7 @@ model:
   init_args:
     library: hf
     architecture: video_mask2former
-    backbone_name: tf_efficientnetv2_m
+    backbone_name: tf_efficientnet_b5
     compile: true
 data:
   init_args:
