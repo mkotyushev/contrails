@@ -2137,7 +2137,9 @@ class VideoMask2FormerTransformerModule(nn.Module):
         size_list = []
 
         m_batch_size, m_channels, m_height, m_width = mask_features.shape
-        batch_size = (m_batch_size // self.num_frames) if self.training else 1
+        # TODO: check correctness
+        # batch_size = (m_batch_size // self.num_frames) if self.training else 1
+        batch_size = m_batch_size // self.num_frames
         frames = m_batch_size // batch_size
         mask_features = mask_features.view(batch_size, frames, m_channels, m_height, m_width)
 
