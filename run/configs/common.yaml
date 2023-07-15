@@ -92,16 +92,16 @@ model:
     loss_name: bce=0.9+dice=0.1
     pos_weight: 0.035
     label_smoothing: 0.0
-    # optimizer_init: 
-    #   class_path: torch.optim.AdamW
-    #   init_args:
-    #     weight_decay: 1e-6
-    #     lr: 1e-4
     optimizer_init: 
-      class_path: bitsandbytes.optim.AdamW8bit
+      class_path: torch.optim.AdamW
       init_args:
         weight_decay: 1e-6
         lr: 1e-4
+    # optimizer_init: 
+    #   class_path: bitsandbytes.optim.AdamW8bit
+    #   init_args:
+    #     weight_decay: 1e-6
+    #     lr: 1e-4
     # optimizer_init: 
     #   class_path: bitsandbytes.optim.Lion8bit
     #   init_args:
