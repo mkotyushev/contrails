@@ -11,7 +11,7 @@ model:
     backbone_name: tf_efficientnet_b5
     compile: true
     log_norm_verbose: 2
-    skip_nan: true  # TODO: check why nan happens in val
+    fill_metric_nan: 0.0  # TODO: check why nan happens in val
 data:
   init_args:
     # override default 6 folds 4 + 1 + 1

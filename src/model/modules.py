@@ -69,7 +69,7 @@ class BaseModule(LightningModule):
         log_norm_verbose: int = 0,
         lr_layer_decay: Union[float, Dict[str, float]] = 1.0,
         n_bootstrap: int = 1000,
-        skip_nan: bool = False,
+        fill_metric_nan: Optional[float] = None,
         prog_bar_names: Optional[list] = None,
         mechanize: bool = False,
     ):
@@ -98,32 +98,28 @@ class BaseModule(LightningModule):
             f'All entities in batch must have the same length, got ' \
             f'{list(map(len, batch))}'
 
-    def remove_nans(self, y, y_pred):
+    def remove_nans(self, y_pred):
         nan_mask = torch.isnan(y_pred)
         
-        if nan_mask.ndim > 1:
-            nan_mask = nan_mask.any(dim=1)
-        
         if nan_mask.any():
-            if not self.hparams.skip_nan:
+            if self.hparams.fill_metric_nan is None:
                 raise ValueError(
                     f'Got {nan_mask.sum()} / {nan_mask.numel()} nan values in update_metrics. '
-                    f'Use skip_nan=True to skip them.'
+                    f'Use fill_metric_nan=True to skip them.'
                 )
             logger.warning(
                 f'Got {nan_mask.sum()} / {nan_mask.numel()} nan values in update_metrics. '
                 f'Dropping them & corresponding targets.'
             )
-            y_pred = y_pred[~nan_mask]
-            y = y[~nan_mask]
-        return y, y_pred
+            y_pred[~nan_mask] = self.hparams.fill_metric_nan
+        return y_pred
 
     def extract_targets_and_probas_for_metric(self, preds, batch):
         """Extract preds and targets from batch.
         Could be overriden for custom batch / prediction structure.
         """
         y, y_pred = batch[1].detach(), preds[:, 1].detach().float()
-        y, y_pred = self.remove_nans(y, y_pred)
+        y_pred = self.remove_nans(y_pred)
         y_pred = torch.softmax(y_pred, dim=1)
         return y, y_pred
 
@@ -1089,7 +1085,7 @@ class SegmentationModule(BaseModule):
         grad_checkpointing: bool = False,
         lr_layer_decay: Union[float, Dict[str, float]] = 1.0,
         n_bootstrap: int = 1000,
-        skip_nan: bool = False,
+        fill_metric_nan: Optional[float] = None,
         prog_bar_names: Optional[list] = None,
         mechanize: bool = False,
         img_size=256,
@@ -1107,7 +1103,7 @@ class SegmentationModule(BaseModule):
             log_norm_verbose=log_norm_verbose,
             lr_layer_decay=lr_layer_decay,
             n_bootstrap=n_bootstrap,
-            skip_nan=skip_nan,
+            fill_metric_nan=fill_metric_nan,
             prog_bar_names=prog_bar_names,
             mechanize=mechanize,
         )
@@ -1455,7 +1451,7 @@ class SegmentationModule(BaseModule):
                 batch['mask'].detach(), 
                 torch.tensor(1.0, device=y_pred.device)
             ).long()
-            y, y_pred = self.remove_nans(y, y_pred)
+            y_pred = self.remove_nans(y_pred)
 
         if y_pred.ndim == 4:
             # video_mask2former: select only single frame

@@ -129,7 +129,7 @@ model:
     lr_layer_decay: 1.0
     log_norm_verbose: 0
     n_bootstrap: 0
-    skip_nan: false
+    fill_metric_nan: null
     prog_bar_names: 
       - dice
     grad_checkpointing: false
