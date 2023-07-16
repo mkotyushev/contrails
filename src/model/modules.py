@@ -898,7 +898,7 @@ def build_segmentation_hf(
                 backbone = ConvNextV2Backbone.from_pretrained(
                     backbone_name,
                     out_features=["stage1", "stage2", "stage3", "stage4"],
-                    local_files_only=not pretrained,
+                    use_pretrained_backbone=pretrained,
                 )
             else:
                 backbone_config = TimmBackboneConfig(
@@ -908,7 +908,7 @@ def build_segmentation_hf(
                 )
                 backbone = TimmBackbone.from_pretrained(
                     backbone_name,
-                    local_files_only=not pretrained,
+                    use_pretrained_backbone=pretrained,
                 )
 
             config = Mask2FormerConfig(
