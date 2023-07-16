@@ -1089,6 +1089,6 @@ class ContrailsPredictionWriterPng(BasePredictionWriter):
 
         # Save
         for i in range(prediction.shape[0]):
-            time_idx = batch['time_idx'][i]
+            time_idx = batch['time_idx'][i] if 'time_idx' in batch else LABELED_TIME_INDEX
             out_path = self.output_dir / (batch['path'][i].split('/')[-1] + f'_{time_idx}_{self.postfix}.png')
             cv2.imwrite(str(out_path), prediction[i])
