@@ -1,13 +1,16 @@
 trainer:
   deterministic: false
-  accumulate_grad_batches: 32
-  max_epochs: 16
+  accumulate_grad_batches: 4
+  max_epochs: 8
+  check_val_every_n_epoch: 1
+  val_check_interval: 0.25
 model:
   init_args:
     library: hf
     architecture: video_mask2former
     backbone_name: tf_efficientnet_b5
     compile: true
+    # log_norm_verbose: 2
 data:
   init_args:
     # override default 6 folds 4 + 1 + 1
