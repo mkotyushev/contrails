@@ -1094,6 +1094,7 @@ class SegmentationModule(BaseModule):
         lr: float = 1e-3,
         postprocess: Literal['cnn', 'erosion', None] = None,
         pretrained_ckpt_path: Optional[Path] = None,
+        add_dice_thresholded: bool = False,
     ):
         super().__init__(
             optimizer_init=optimizer_init,
@@ -1245,10 +1246,18 @@ class SegmentationModule(BaseModule):
 
     def configure_metrics(self):
         """Configure task-specific metrics."""
+        dice_thresholded = {}
+        if self.hparams.add_dice_thresholded:
+            for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
+                threshold_str = f'{threshold:.1f}'.replace('.', '')
+                dice_thresholded[f'dice_{threshold_str}'] = BinaryF1Score(
+                    threshold=threshold,
+                )
         metrics = ModuleDict(
             {
                 'preview': PredictionTargetPreviewGrid(preview_downscale=4, n_images=9),
                 'dice': BinaryF1Score(),
+                **dice_thresholded,
                 'dice_pos': BinaryF1Score(ignore_index=0),
             }
         )
