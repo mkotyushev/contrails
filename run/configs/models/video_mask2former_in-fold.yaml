@@ -1,0 +1,34 @@
+trainer:
+  deterministic: false
+  accumulate_grad_batches: 4
+  max_epochs: 8
+  check_val_every_n_epoch: 1
+  val_check_interval: 0.25
+model:
+  init_args:
+    library: hf
+    architecture: video_mask2former
+    backbone_name: tf_efficientnet_b5
+    compile: true
+    log_norm_verbose: 2
+    fill_metric_nan: 0.0  # TODO: check why nan happens in val
+data:
+  init_args:
+    # override default 6 folds 4 + 1 + 1
+    # to load trained single image model on 5 folds 4 + 1
+    # with same train / val split
+    num_folds: 5
+    batch_size: 2
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: weighted
+      not_labeled_mode: video
+      pseudolabels_path: ../data/pseudolabels/in-fold/npy
+      conversion_type: ash
+      quantize: true
+      stats_precomputed: false
+    cache_dir: cache_pseudolabels
+    remove_pseudolabels_from_val_test: false
+    # TODO: support augs for video
+    randaugment_num_ops: 0
+    randaugment_magnitude: 0
