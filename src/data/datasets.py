@@ -254,7 +254,7 @@ class ContrailsDataset:
         # Load masks (if available)
         human_pixel_masks = None
         if (
-            time_idx == LABELED_TIME_INDEX and
+            (time_idx is None or time_idx == LABELED_TIME_INDEX) and
             self.mask_type is not None and 
             (record_dir / 'human_pixel_masks.npy').exists()
         ):
@@ -264,7 +264,7 @@ class ContrailsDataset:
         
         human_individual_masks = None
         if (
-            time_idx == LABELED_TIME_INDEX and
+            (time_idx is None or time_idx == LABELED_TIME_INDEX) and
             self.mask_type is not None and
             self.mask_type in ['mean', 'weighted'] and 
             (record_dir / 'human_individual_masks.npy').exists()
@@ -345,14 +345,27 @@ class ContrailsDataset:
             mask = mask[..., 0]  # (H, W)
 
         # Use gt labels if available, otherwise use pseudolabels (if available)
-        if mask is None and pseudolabel_masks is not None:
-            logger.debug(f'Using pseudolabels for {record_dir} at time {time_idx}')
-            mask = pseudolabel_masks
-        else:
-            if mask is None:
-                logger.debug(f'Mask is None for {record_dir} at time {time_idx}')
+        if mask is None:
+            if pseudolabel_masks is not None:
+                logger.debug(f'Using pseudolabels for {record_dir} at time {time_idx}')
+                mask = pseudolabel_masks
             else:
-                logger.debug(f'Using gt labels for {record_dir} at time {time_idx}')
+                logger.debug(
+                    f'No mask (gt or pseudolabels) found '
+                    f'for {record_dir} at time {time_idx}'
+                )
+        else:
+            if pseudolabel_masks is not None:
+                logger.debug(
+                    f'Using gt labels and pseudolabels '
+                    f'for {record_dir} at time {time_idx}'
+                )
+                pseudolabel_masks[..., LABELED_TIME_INDEX] = mask
+                mask = pseudolabel_masks
+            else:
+                logger.debug(
+                    f'Using gt labels for {record_dir} at time {time_idx}'
+                )
 
         # Stack frames to channel dimension for transfroms
         if image.ndim == 4:
