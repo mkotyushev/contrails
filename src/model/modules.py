@@ -947,6 +947,7 @@ def build_segmentation_hf(
             )
             backbone = TimmBackbone.from_pretrained(
                 backbone_name,
+                use_pretrained_backbone=pretrained,
             )
 
             config = Mask2FormerConfig(
