@@ -17,7 +17,9 @@ data:
     # to load trained single image model on 5 folds 4 + 1
     # with same train / val split
     num_folds: 5
+    num_frames: 2
     batch_size: 2
+    img_size: 512
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: weighted
