@@ -7,7 +7,7 @@ data:
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: weighted
-      use_not_labeled: true
+      not_labeled_mode: single
       pseudolabels_path: ../data/pseudolabels/out-of-fold/npy
       conversion_type: ash
       quantize: true

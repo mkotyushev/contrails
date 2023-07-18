@@ -258,7 +258,7 @@ class ContrailsDatamodule(LightningDataModule):
         val_test_dataset_kwargs = deepcopy(self.hparams.dataset_kwargs)
         if self.hparams.remove_pseudolabels_from_val_test:
             if val_test_dataset_kwargs['not_labeled_mode'] == 'single':
-                val_test_dataset_kwargs['not_labeled_mode'] = False
+                val_test_dataset_kwargs['not_labeled_mode'] = None
                 val_test_dataset_kwargs['pseudolabels_path'] = None
 
         if self.val_dataset is None and val_record_dirs:

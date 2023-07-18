@@ -31,7 +31,7 @@ def cli_main():
 
     assert (
         not cli.datamodule.hparams.remove_pseudolabels_from_val_test or 
-        not cli.datamodule.hparams.dataset_kwargs['use_not_labeled']
+        cli.datamodule.hparams.dataset_kwargs['not_labeled_mode'] is None
     ), \
         "remove_pseudolabels_from_val_test should be False here " \
         "if using all the frames in order to create full cache"
