@@ -1,7 +1,7 @@
 trainer:
   deterministic: false
   accumulate_grad_batches: 4
-  max_epochs: 8
+  max_epochs: 32
   check_val_every_n_epoch: 1
   val_check_interval: 0.25
 model:
