@@ -356,12 +356,17 @@ class ContrailsDataset:
                 )
         else:
             if pseudolabel_masks is not None:
-                logger.debug(
-                    f'Using gt labels and pseudolabels '
-                    f'for {record_dir} at time {time_idx}'
-                )
-                pseudolabel_masks[..., LABELED_TIME_INDEX] = mask
-                mask = pseudolabel_masks
+                if time_idx is None:
+                    # Video mode replacing pseudolabels of LABELED_TIME_INDEX 
+                    # with gt labels
+                    logger.debug(
+                        f'Using gt labels and pseudolabels '
+                        f'for {record_dir} at time {time_idx}'
+                    )
+                    pseudolabel_masks[..., LABELED_TIME_INDEX] = mask
+                    mask = pseudolabel_masks
+                else:
+                    pass
             else:
                 logger.debug(
                     f'Using gt labels for {record_dir} at time {time_idx}'

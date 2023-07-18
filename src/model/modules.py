@@ -1351,7 +1351,12 @@ class SegmentationModule(BaseModule):
     
     def validation_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
         loss_prefix = 'vl'
-        total_loss, losses, preds = self.compute_loss_preds(batch, only_labeled=True, **kwargs)
+
+        # Only for video the pseudolabels are in val and need to be excluded here
+        # TODO: refactor
+        only_labeled = self.hparams.architecture == 'video_mask2former'
+        total_loss, losses, preds = self.compute_loss_preds(batch, only_labeled=only_labeled, **kwargs)
+        
         assert dataloader_idx is None or dataloader_idx == 0, 'Only one val dataloader is supported.'
         for loss_name, loss in losses.items():
             self.log(
