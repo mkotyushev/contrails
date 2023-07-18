@@ -19,6 +19,7 @@ data:
     num_folds: 5
     num_frames: 2
     batch_size: 2
+    batch_size_val_test: 1
     img_size: 512
     dataset_kwargs:
       band_ids: [11, 14, 15]

@@ -45,6 +45,7 @@ class ContrailsDatamodule(LightningDataModule):
         randaugment_magnitude: int = 9,
         mix_transform_name: Optional[str] = None,
         batch_size: int = 32,
+        batch_size_val_test: Optional[int] = None,
         num_workers: int = 0,
         pin_memory: bool = False,
         prefetch_factor: int = 2,
@@ -74,10 +75,22 @@ class ContrailsDatamodule(LightningDataModule):
         if num_frames is not None:
             assert dataset_kwargs['not_labeled_mode'] == 'video', \
                 'num_frames is valid only for not_labeled_mode == "video"'
+
+        assert scale_factor >= 1, 'scale_factor must be >= 1'
+        if scale_factor > 1:
+            if batch_size_val_test is not None and batch_size_val_test < batch_size:
+                logger.warning(
+                    f'batch_size_val_test is {batch_size_val_test}, '
+                    f'scale_factor is {scale_factor} > 1, '
+                    f'probably batch_size_val_test should be < batch_size '
+                    f'to avoid OOM'
+                )
+        
+        if batch_size_val_test is None:
+            batch_size_val_test = batch_size
         
         self.save_hyperparameters()
 
-        assert scale_factor >= 1, 'scale_factor must be >= 1'
         assert (
             num_folds is None and fold_index is None or
             num_folds is not None and fold_index is not None
@@ -507,11 +520,9 @@ class ContrailsDatamodule(LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader:
-        batch_size = math.floor(self.hparams.batch_size // self.hparams.scale_factor ** 2)
-        batch_size = max(batch_size, 1)
         val_dataloader = DataLoader(
             dataset=self.val_dataset, 
-            batch_size=batch_size, 
+            batch_size=self.hparams.batch_size_val_test, 
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             prefetch_factor=self.hparams.prefetch_factor,
@@ -524,11 +535,9 @@ class ContrailsDatamodule(LightningDataModule):
 
     def test_dataloader(self) -> DataLoader:
         assert self.test_dataset is not None, "test dataset is not defined"
-        batch_size = math.floor(self.hparams.batch_size // self.hparams.scale_factor ** 2)
-        batch_size = max(batch_size, 1)
         return DataLoader(
             dataset=self.test_dataset, 
-            batch_size=batch_size, 
+            batch_size=self.hparams.batch_size_val_test, 
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             prefetch_factor=self.hparams.prefetch_factor,

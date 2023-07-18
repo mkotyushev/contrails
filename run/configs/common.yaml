@@ -170,6 +170,7 @@ data:
     empty_mask_strategy: null
     mix_transform_name: null
     batch_size: 32
+    batch_size_val_test: null  # same as batch_size
     num_workers: 8
     pin_memory: true
     prefetch_factor: 1
