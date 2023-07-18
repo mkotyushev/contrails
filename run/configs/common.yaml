@@ -137,6 +137,7 @@ model:
     lr: null  # needed for sweeps
     postprocess: null
     pretrained_ckpt_path: null
+    num_frames: null  # only for not_labeled_mode == "video"
 data:
   class_path: src.data.datamodules.ContrailsDatamodule
   init_args:

@@ -10,6 +10,6 @@ preds/
 pseudolabels/
 weights/
 artifacts/
-data/
+/data/
 .venv/
 *.log

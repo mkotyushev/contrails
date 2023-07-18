@@ -821,7 +821,11 @@ def build_segmentation_hf(
     grad_checkpointing=False,
     pretrained=True,
     postprocess=None,
+    num_frames=None,
 ):
+    if num_frames is None and architecture == 'video_mask2former':
+        num_frames = N_TIMES 
+
     # TODO: fix pretrained not used for all the options
     if architecture == 'segformer':
         model = SegformerForSemanticSegmentation.from_pretrained(
@@ -955,7 +959,7 @@ def build_segmentation_hf(
                 num_labels=1, 
                 use_auxiliary_head=False,
             )
-            config.num_frames = N_TIMES
+            config.num_frames = num_frames
 
             # Hack to use any backbone
             with patch(
@@ -971,12 +975,18 @@ def build_segmentation_hf(
     
     if hasattr(model, 'gradient_checkpointing'):
         model.gradient_checkpointing = grad_checkpointing
+        logger.warning(
+            'setting grad_checkpointing for full model'
+        )
     elif (
         hasattr(model, 'transformer_module') and 
         hasattr(model.transformer_module, 'decoder') and 
         hasattr(model.transformer_module.decoder, 'gradient_checkpointing')
     ):
         model.transformer_module.decoder.gradient_checkpointing = grad_checkpointing
+        logger.warning(
+            'setting grad_checkpointing for decoder only'
+        )
     else:
         logger.warning(
             'grad_checkpointing is not supported for this model, '
@@ -993,13 +1003,9 @@ def build_segmentation_hf(
         else:
             scale_factor = 2
 
-    n_frames = None
-    if architecture == 'video_mask2former':
-        n_frames = N_TIMES
-
     model = UpsampleWrapper(
         model, 
-        n_frames=n_frames, 
+        n_frames=num_frames, 
         scale_factor=scale_factor, 
         postprocess=postprocess,
     )
@@ -1099,6 +1105,7 @@ class SegmentationModule(BaseModule):
         postprocess: Literal['cnn', 'erosion', None] = None,
         pretrained_ckpt_path: Optional[Path] = None,
         add_dice_thresholded: bool = False,
+        num_frames: Optional[int] = None,
     ):
         super().__init__(
             optimizer_init=optimizer_init,
@@ -1135,6 +1142,7 @@ class SegmentationModule(BaseModule):
                 grad_checkpointing=grad_checkpointing,
                 pretrained=pretrained,
                 postprocess=postprocess,
+                num_frames=num_frames,
             )
         elif library == 'smp':
             self.model = build_segmentation_smp(
@@ -1467,10 +1475,19 @@ class SegmentationModule(BaseModule):
             y_pred = self.remove_nans(y_pred)
 
         if y_pred.ndim == 4:
-            # video_mask2former: select only single frame
-            y_pred = y_pred[..., LABELED_TIME_INDEX]
-            if y is not None:
-                y = y[..., LABELED_TIME_INDEX]
+            # video_mask2former
+            if y_pred.shape[-1] == N_TIMES:
+                # select single labeled frame for val
+                # (assuming val is full video and we only need labeled frame)
+                y_pred = y_pred[..., LABELED_TIME_INDEX]
+                if y is not None:
+                    y = y[..., LABELED_TIME_INDEX]
+            else:
+                # select single frame for train
+                # (assuming train is subsampled video and we need any frame)
+                y_pred = y_pred[..., 0]
+                if y is not None:
+                    y = y[..., 0]
         
         return y, y_pred
     

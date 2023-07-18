@@ -6,6 +6,8 @@ from typing import Dict, List
 from torchvision.transforms import functional as F_torchvision
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
+from src.data.datasets import N_TIMES
+
 ###################################################################
 ##################### CV ##########################################
 ###################################################################
@@ -282,3 +284,38 @@ class Tta:
         preds = torch.nanmean(preds, dim=0)
         
         return preds
+
+
+class RandomSubsequence:
+    def __init__(
+        self, 
+        num_frames,
+        always_apply=True,
+        p=1.0, 
+    ):
+        assert num_frames > 1, f'num_frames should be > 1. Got {num_frames}'
+        assert num_frames <= N_TIMES, f'num_frames should be <= {N_TIMES}. Got {num_frames}'
+        self.num_frames = num_frames
+        self.always_apply = always_apply
+        self.p = p
+
+    def __call__(self, *args, force_apply: bool = False, **kwargs) -> Dict[str, np.ndarray]:
+        # Toss a coin
+        if not force_apply and not self.always_apply and random.random() > self.p:
+            return kwargs
+
+        if self.num_frames == N_TIMES:
+            return kwargs
+        
+        start_index = random.randint(0, N_TIMES - self.num_frames)
+
+        # image.shape = (H, W, C' = C * N_TIMES) -> (H, W, C, N_TIMES) -> (H, W, C, self.num_frames)
+        image = kwargs["image"]
+        image = image.reshape(*image.shape[:-1], -1, N_TIMES)
+        image = image[..., start_index:start_index + self.num_frames]
+        kwargs["image"] = image.reshape(*image.shape[:-2], -1)
+
+        # mask.shape = (H, W, N_TIMES) -> (H, W, self.num_frames)
+        kwargs["mask"] = kwargs["mask"][..., start_index:start_index + self.num_frames]
+
+        return kwargs

@@ -20,6 +20,7 @@ from src.data.transforms import (
     CopyPastePositive,
     CutMix,
     MixUp,
+    RandomSubsequence,
 )
 from src.utils.utils import contrails_collate_fn
 from src.utils.randaugment import RandAugment
@@ -57,6 +58,7 @@ class ContrailsDatamodule(LightningDataModule):
         scale_factor: int = 1,
         to_predict: Literal['test', 'val', 'train'] = 'test',
         remove_pseudolabels_from_val_test: bool = True,
+        num_frames: Optional[int] = None,
     ):
         super().__init__()
 
@@ -68,6 +70,10 @@ class ContrailsDatamodule(LightningDataModule):
             dataset_kwargs = {}
         logger.info(f"dataset_kwargs types: {[type(v) for v in dataset_kwargs.values()]}")
         logger.info(f"dataset_kwargs: {dataset_kwargs}")
+
+        if num_frames is not None:
+            assert dataset_kwargs['not_labeled_mode'] == 'video', \
+                'num_frames is valid only for not_labeled_mode == "video"'
         
         self.save_hyperparameters()
 
@@ -120,8 +126,18 @@ class ContrailsDatamodule(LightningDataModule):
                 RandAugment(self.hparams.randaugment_num_ops, self.hparams.randaugment_magnitude),
             ]
 
+        n_frames_tranform = []
+        if self.hparams.num_frames is not None:
+            n_frames_tranform = [
+                RandomSubsequence(
+                    self.hparams.num_frames,
+                    always_apply=True,
+                )
+            ]
+
         self.train_transform = A.Compose(
             [
+                *n_frames_tranform,
                 train_resize_transform,
                 *aug_transform,
                 A.Normalize(

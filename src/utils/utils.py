@@ -51,6 +51,10 @@ class MyLightningCLI(LightningCLI):
             "data.init_args.img_size", 
             "model.init_args.img_size",
         )
+        parser.link_arguments(
+            "data.init_args.num_frames", 
+            "model.init_args.num_frames",
+        )
 
 
 class MyLightningCLISweep(MyLightningCLI):
