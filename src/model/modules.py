@@ -1196,11 +1196,14 @@ class SegmentationModule(BaseModule):
         if pretrained_ckpt_path is not None:
             logger.info(f'Loading weights from {pretrained_ckpt_path}')
             checkpoint = torch.load(pretrained_ckpt_path)
-            checkpoint['state_dict'] = {
-                k.replace('model._orig_mod.encoder.model', 'model._orig_mod.model.model.pixel_level_module.encoder._backbone'): v 
-                for k, v in checkpoint['state_dict'].items() 
-                if 'model._orig_mod.encoder.model' in k
-            }
+            if architecture == 'video_mask2former':
+                # Hack to only load encoder weights
+                # from pretrained smp + unet + b5 on single images
+                checkpoint['state_dict'] = {
+                    k.replace('model._orig_mod.encoder.model', 'model._orig_mod.model.model.pixel_level_module.encoder._backbone'): v 
+                    for k, v in checkpoint['state_dict'].items() 
+                    if 'model._orig_mod.encoder.model' in k
+                }
             logger.info(str(self.load_state_dict(checkpoint['state_dict'], strict=False)))
 
     def compute_loss_preds(self, batch, only_labeled=False, *args, **kwargs):
