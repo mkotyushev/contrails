@@ -1211,10 +1211,17 @@ class SegmentationModule(BaseModule):
             return None, None, preds
         
         if preds.ndim == 4 and only_labeled:
-            # video_mask2former, on validation use only one truly labeled frame
-            # and not pseudo-labeled
-            preds = preds[..., LABELED_TIME_INDEX]
-            batch['mask'] = batch['mask'][..., LABELED_TIME_INDEX]
+            # video_mask2former
+            if preds.shape[-1] == N_TIMES:
+                # select single labeled frame for val
+                # (assuming val is full video and we only need labeled frame)
+                preds = preds[..., LABELED_TIME_INDEX]
+                batch['mask'] = batch['mask'][..., LABELED_TIME_INDEX]
+            else:
+                # select single frame for train
+                # (assuming train is subsampled video and we need any frame)
+                preds = preds[..., 0]
+                batch['mask'] = batch['mask'][..., 0]
 
         losses = {}
         for loss_name, loss_weight in parse_loss_name(self.hparams.loss_name).items():

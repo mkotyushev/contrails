@@ -716,6 +716,16 @@ class FeatureExtractorWrapper(nn.Module):
         return features
 
 
+@contextlib.contextmanager
+def temp_setattr(object, attr_name, attr_value):
+    old_value = getattr(object, attr_name)
+    setattr(object, attr_name, attr_value)
+    try:
+        yield
+    finally:
+        setattr(object, attr_name, old_value)
+
+
 class UpsampleWrapper(nn.Module):
     def __init__(self, model, n_frames=None, scale_factor=4, postprocess=None):
         super().__init__()
@@ -742,20 +752,28 @@ class UpsampleWrapper(nn.Module):
 
     def forward(self, x):
         if self.n_frames is not None:
+            # It is assumed that for training there is 
+            # self.n_frames <= N_TIMES frames and for inference
+            # there is N_TIMES frames
+            n_frames = self.n_frames if self.training else N_TIMES
             # To use albumentations, T dim is stacked to C dim
             # unstack here and stack to N dim to use with video model
             # (N, C * T, H, W) -> (N * T, C, H, W)
             N, C_T, H, W = x.shape
-            assert C_T % self.n_frames == 0, \
+            assert C_T % n_frames == 0, \
                 f'Number of channels * frames for video {C_T} is not divisible by ' \
-                f'assumed number of frames {self.n_frames}.'
-            C = C_T // self.n_frames
-            x = x.view(N, C, self.n_frames, H, W)
+                f'assumed number of frames {n_frames}.'
+            C = C_T // n_frames
+            x = x.view(N, C, n_frames, H, W)
             x = x.permute(0, 2, 1, 3, 4).contiguous()
             x = x.view(-1, C, H, W)
         
-        # Get predictions
-        x = self.model(x)
+            # Get predictions: num_frames is different for train and val
+            # but the model expects num_frames as per its config
+            with temp_setattr(self.model.model.transformer_module, 'num_frames', n_frames):
+                x = self.model(x)
+        else:
+            x = self.model(x)
 
         video = False
         if isinstance(x, torch.Tensor):
