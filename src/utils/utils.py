@@ -958,6 +958,9 @@ class EMACallback(Callback):
         self.ema = ExponentialMovingAverage(pl_module.parameters(), decay=self.decay)
     
     def on_validation_end(self, trainer, pl_module):
+        if self.ema is None:
+            return
+
         self.ema.update()
     
         with self.ema.average_parameters():
