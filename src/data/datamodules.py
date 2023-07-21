@@ -15,12 +15,13 @@ from torch.utils.data import DataLoader
 from albumentations.pytorch import ToTensorV2
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
-from src.data.datasets import MEAN, STD, ContrailsDataset, BANDS
+from src.data.datasets import LABELED_TIME_INDEX, MEAN, STD, ContrailsDataset, BANDS
 from src.data.transforms import (
     CopyPastePositive,
     CutMix,
     MixUp,
     RandomSubsequence,
+    SelectConcatTransform,
 )
 from src.utils.utils import contrails_collate_fn
 from src.utils.randaugment import RandAugment
@@ -60,6 +61,7 @@ class ContrailsDatamodule(LightningDataModule):
         to_predict: Literal['test', 'val', 'train'] = 'test',
         remove_pseudolabels_from_val_test: bool = True,
         num_frames: Optional[int] = None,
+        cat_mode: Literal['spatial', 'channel', None] = None,
     ):
         super().__init__()
 
@@ -141,12 +143,21 @@ class ContrailsDatamodule(LightningDataModule):
 
         n_frames_tranform = []
         if self.hparams.num_frames is not None:
-            n_frames_tranform = [
-                RandomSubsequence(
-                    self.hparams.num_frames,
-                    always_apply=True,
-                )
-            ]
+            if self.hparams.cat_mode is None:
+                n_frames_tranform = [
+                    RandomSubsequence(
+                        self.hparams.num_frames,
+                        always_apply=True,
+                    )
+                ]
+            else:
+                n_frames_tranform = [
+                    SelectConcatTransform(
+                        cat_mode=self.hparams.cat_mode,
+                        num_total_frames=self.hparams.num_frames,
+                        time_indices=[LABELED_TIME_INDEX],
+                    )
+                ]
 
         self.train_transform = A.Compose(
             [

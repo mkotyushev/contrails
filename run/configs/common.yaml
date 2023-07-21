@@ -153,6 +153,7 @@ data:
     randaugment_num_ops: 3
     randaugment_magnitude: 9
     scale_factor: 1
+    concat: false
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: weighted
