@@ -145,7 +145,7 @@ data:
       - ../data/train
       - ../data/validation
     data_dirs_test: null
-    num_folds: 6
+    num_folds: 5
     fold_index: 0
     fold_index_outer: null
     img_size: 256
