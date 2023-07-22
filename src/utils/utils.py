@@ -71,9 +71,9 @@ class MyLightningCLISweep(MyLightningCLI):
         """Implement to run some code before instantiating the classes."""
         device_to_batch_size_divider = {
             'NVIDIA GeForce RTX 3090': 1,
-            'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 2,
-            'Tesla T4': 2,
-            'Tesla V100-SXM2-16GB': 2,
+            'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 1,
+            'Tesla T4': 1,
+            'Tesla V100-SXM2-16GB': 1,
         }
 
         backbone_name_to_batch_params_img_size_256 = {
@@ -85,8 +85,8 @@ class MyLightningCLISweep(MyLightningCLI):
 
             # SMP old + Unet
             'tf_efficientnet_b5.ns_jft_in1k': {
-                'batch_size': 128,
-                'accumulate_grad_batches': 0.5,
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
             },
 
             # SMP + Unet
