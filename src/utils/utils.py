@@ -105,8 +105,8 @@ class MyLightningCLISweep(MyLightningCLI):
 
             # HF + Segformer
             'nvidia/mit-b5': {
-                'batch_size': 64,
-                'accumulate_grad_batches': 1,
+                'batch_size': 32,
+                'accumulate_grad_batches': 2,
             },
 
             # HF + Upernet
