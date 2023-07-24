@@ -617,8 +617,12 @@ mmseg_params = {
         'cfg_path': './lib/InternImage/segmentation/configs/ade20k/upernet_internimage_b_512_160k_ade20k.py',
         'ckpt_path': 'https://huggingface.co/OpenGVLab/InternImage/resolve/main/upernet_internimage_b_512_160k_ade20k.pth',
     },
+    ('upernet', 'internimage-xl'): {
+        'cfg_path': './lib/InternImage/segmentation/configs/ade20k/upernet_internimage_xl_640_160k_ade20k.py',
+        'ckpt_path': 'https://huggingface.co/OpenGVLab/InternImage/blob/main/upernet_internimage_xl_640_160k_ade20k.pth',
+    },
     ('mask2former', 'internimage-h'): {
-        'cfg_path': 'lib/InternImage/segmentation/configs/ade20k/mask2former_internimage_h_896_80k_cocostuff2ade20k_ss.py',
+        'cfg_path': './lib/InternImage/segmentation/configs/ade20k/mask2former_internimage_h_896_80k_cocostuff2ade20k_ss.py',
         'ckpt_path': 'https://huggingface.co/OpenGVLab/InternImage/resolve/main/mask2former_internimage_h_896_80k_cocostuff2ade20k.pth',
     }
 }
