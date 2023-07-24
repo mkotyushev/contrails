@@ -616,6 +616,10 @@ mmseg_params = {
     ('upernet', 'internimage-b'): {
         'cfg_path': './lib/InternImage/segmentation/configs/ade20k/upernet_internimage_b_512_160k_ade20k.py',
         'ckpt_path': 'https://huggingface.co/OpenGVLab/InternImage/resolve/main/upernet_internimage_b_512_160k_ade20k.pth',
+    },
+    ('mask2former', 'internimage-h'): {
+        'cfg_path': 'lib/InternImage/segmentation/configs/ade20k/mask2former_internimage_h_896_80k_cocostuff2ade20k_ss.py',
+        'ckpt_path': 'https://huggingface.co/OpenGVLab/InternImage/resolve/main/mask2former_internimage_h_896_80k_cocostuff2ade20k.pth',
     }
 }
 def build_segmentation_mmseg(
@@ -685,6 +689,34 @@ def build_segmentation_smp(
             encoder_weights=encoder_weights,     # use `imagenet` pre-trained weights for encoder initialization
             in_channels=in_channels,                  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
             classes=1,                      # model output channels (number of classes in your dataset)
+        )
+    elif architecture == 'fpn':
+        model = smp.FPN(
+            encoder_name=backbone_name,
+            encoder_weights=encoder_weights,
+            in_channels=in_channels,
+            classes=1,
+        )
+    elif architecture == 'unetpp':
+        model = smp.UnetPlusPlus(
+            encoder_name=backbone_name,
+            encoder_weights=encoder_weights,
+            in_channels=in_channels,
+            classes=1,
+        )
+    elif architecture == 'deeplabv3':
+        model = smp.DeepLabV3(
+            encoder_name=backbone_name,
+            encoder_weights=encoder_weights,
+            in_channels=in_channels,
+            classes=1,
+        )
+    elif architecture == 'deeplabv3plus':
+        model = smp.DeepLabV3Plus(
+            encoder_name=backbone_name,
+            encoder_weights=encoder_weights,
+            in_channels=in_channels,
+            classes=1,
         )
     else:
         raise ValueError(f'unknown architecture {architecture} for SMP')
