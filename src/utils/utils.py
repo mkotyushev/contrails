@@ -79,8 +79,8 @@ class MyLightningCLISweep(MyLightningCLI):
         backbone_name_to_batch_params_img_size_256 = {
             # Eva
             'eva02_B_ade_seg_upernet_sz512': {
-                'batch_size': 64,
-                'accumulate_grad_batches': 1,
+                'batch_size': 32,
+                'accumulate_grad_batches': 2,
             },
 
             # SMP old + Unet
