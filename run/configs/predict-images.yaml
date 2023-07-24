@@ -4,7 +4,7 @@ trainer:
       init_args:
         output_dir: preds
         img_size: 256
-        threshold: 0.3
+        threshold: 0.75
 data:
   init_args:
     data_dirs: null
