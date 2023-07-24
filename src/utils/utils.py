@@ -71,9 +71,9 @@ class MyLightningCLISweep(MyLightningCLI):
         """Implement to run some code before instantiating the classes."""
         device_to_batch_size_divider = {
             'NVIDIA GeForce RTX 3090': 1,
-            'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 1,
-            'Tesla T4': 1,
-            'Tesla V100-SXM2-16GB': 1,
+            'NVIDIA GeForce RTX 3080 Ti Laptop GPU': 2,
+            'Tesla T4': 2,
+            'Tesla V100-SXM2-16GB': 2,
         }
 
         backbone_name_to_batch_params_img_size_256 = {
@@ -105,8 +105,8 @@ class MyLightningCLISweep(MyLightningCLI):
 
             # HF + Segformer
             'nvidia/mit-b5': {
-                'batch_size': 32,
-                'accumulate_grad_batches': 2,
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
             },
 
             # HF + Upernet
@@ -193,6 +193,11 @@ class MyLightningCLISweep(MyLightningCLI):
                 f'Using default batch size and accumulate_grad_batches.'
             )
             device_to_batch_size_divider[device_name] = 1
+
+        # Force special case divider to 1
+        if self.config['fit']['model']['init_args']['backbone_name'] == 'tf_efficientnet_b5.ns_jft_in1k':
+            for k in device_to_batch_size_divider:
+                device_to_batch_size_divider[k] = 1
 
         # Scale batch size and accumulate_grad_batches with image size
         area_divider = self.config['fit']['data']['init_args']['img_size'] ** 2 / 256 ** 2
