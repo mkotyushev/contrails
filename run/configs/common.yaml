@@ -87,7 +87,7 @@ model:
     #   use_hflip: true
     #   use_vflip: true
     #   rotate90_indices: [1, 2, 3]
-    pretrained: true
+    pretrained: imagenet
     mechanize: false
     loss_name: bce=0.9+dice=0.1
     pos_weight: 0.035

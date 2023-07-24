@@ -682,39 +682,38 @@ def build_segmentation_smp(
     postprocess=None,
 ):
     """Build segmentation model."""
-    encoder_weights = "imagenet" if pretrained else None
     if architecture == 'unet':
         model = smp.Unet(
             encoder_name=backbone_name,     # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
-            encoder_weights=encoder_weights,     # use `imagenet` pre-trained weights for encoder initialization
+            encoder_weights=pretrained,     # use `imagenet` pre-trained weights for encoder initialization
             in_channels=in_channels,                  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
             classes=1,                      # model output channels (number of classes in your dataset)
         )
     elif architecture == 'fpn':
         model = smp.FPN(
             encoder_name=backbone_name,
-            encoder_weights=encoder_weights,
+            encoder_weights=pretrained,
             in_channels=in_channels,
             classes=1,
         )
     elif architecture == 'unetpp':
         model = smp.UnetPlusPlus(
             encoder_name=backbone_name,
-            encoder_weights=encoder_weights,
+            encoder_weights=pretrained,
             in_channels=in_channels,
             classes=1,
         )
     elif architecture == 'deeplabv3':
         model = smp.DeepLabV3(
             encoder_name=backbone_name,
-            encoder_weights=encoder_weights,
+            encoder_weights=pretrained,
             in_channels=in_channels,
             classes=1,
         )
     elif architecture == 'deeplabv3plus':
         model = smp.DeepLabV3Plus(
             encoder_name=backbone_name,
-            encoder_weights=encoder_weights,
+            encoder_weights=pretrained,
             in_channels=in_channels,
             classes=1,
         )
@@ -1116,7 +1115,7 @@ class SegmentationModule(BaseModule):
         in_channels: int = 6,
         log_preview_every_n_epochs: int = 10,
         tta_params: Dict[str, Any] = None,
-        pretrained: bool = True,
+        pretrained: Optional[str] = 'imagenet',
         label_smoothing: float = 0.0,
         pos_weight: Optional[float] = None,
         optimizer_init: Optional[Dict[str, Any]] = None,
@@ -1160,7 +1159,7 @@ class SegmentationModule(BaseModule):
                 architecture=architecture,
                 in_channels=in_channels, 
                 backbone_name=backbone_name,
-                pretrained=pretrained,
+                pretrained=pretrained is not None,
                 grad_checkpointing=grad_checkpointing,
                 img_size=img_size,
                 xattn=not compile,  # xattn is not supported by torch.compile
@@ -1172,7 +1171,7 @@ class SegmentationModule(BaseModule):
                 architecture=architecture,
                 in_channels=in_channels,
                 grad_checkpointing=grad_checkpointing,
-                pretrained=pretrained,
+                pretrained=pretrained is not None,
                 postprocess=postprocess,
                 num_frames=num_frames,
             )
@@ -1192,7 +1191,7 @@ class SegmentationModule(BaseModule):
                 decoder_attention_type=None,
                 img_size=img_size,
                 grad_checkpointing=grad_checkpointing,
-                pretrained=pretrained,
+                pretrained=pretrained is not None,
                 postprocess=postprocess,
             )
         elif library == 'mmseg':
