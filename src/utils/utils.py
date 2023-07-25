@@ -88,6 +88,10 @@ class MyLightningCLISweep(MyLightningCLI):
                 'batch_size': 64,
                 'accumulate_grad_batches': 1,
             },
+            'tf_efficientnet_b0.ns_jft_in1k': {
+                'batch_size': 256,
+                'accumulate_grad_batches': 0.25,
+            },
 
             # SMP + Unet
             'timm-efficientnet-b5': {
@@ -150,9 +154,11 @@ class MyLightningCLISweep(MyLightningCLI):
             }
         }
 
+        backbone_name = self.config['fit']['model']['init_args']['backbone_name']
+
         # Force img_size for maxvit models
         # (required to be divisible by 192)
-        if self.config['fit']['model']['init_args']['backbone_name'] == 'maxvit_rmlp_base_rw_384':
+        if backbone_name == 'maxvit_rmlp_base_rw_384':
             self.config['fit']['data']['init_args']['img_size'] = 384
             self.config['fit']['model']['init_args']['img_size'] = 384
 
@@ -171,7 +177,7 @@ class MyLightningCLISweep(MyLightningCLI):
 
         # Force not compile
         if (
-            self.config['fit']['model']['init_args']['backbone_name'].startswith('convnext')
+            backbone_name.startswith('convnext')
         ):
             if self.config['fit']['model']['init_args']['compile']:
                 logger.warning(
@@ -195,18 +201,21 @@ class MyLightningCLISweep(MyLightningCLI):
             device_to_batch_size_divider[device_name] = 1
 
         # Force special case divider to 1
-        if self.config['fit']['model']['init_args']['backbone_name'] == 'tf_efficientnet_b5.ns_jft_in1k':
+        if backbone_name == 'tf_efficientnet_b5.ns_jft_in1k':
             for k in device_to_batch_size_divider:
                 device_to_batch_size_divider[k] = 1
 
+        # Set default batch params for img_size=256
+        if backbone_name not in backbone_name_to_batch_params_img_size_256:
+            backbone_name_to_batch_params_img_size_256[backbone_name] = {
+                'batch_size': 64,
+                'accumulate_grad_batches': 1,
+            }
+        
         # Scale batch size and accumulate_grad_batches with image size
         area_divider = self.config['fit']['data']['init_args']['img_size'] ** 2 / 256 ** 2
-        batch_size = backbone_name_to_batch_params_img_size_256[
-            self.config['fit']['model']['init_args']['backbone_name']
-        ]['batch_size']
-        accumulate_grad_batches = backbone_name_to_batch_params_img_size_256[
-            self.config['fit']['model']['init_args']['backbone_name']
-        ]['accumulate_grad_batches']
+        batch_size = backbone_name_to_batch_params_img_size_256[backbone_name]['batch_size']
+        accumulate_grad_batches = backbone_name_to_batch_params_img_size_256[backbone_name]['accumulate_grad_batches']
         divider = device_to_batch_size_divider[device_name] * area_divider
 
         assert batch_size / divider >= 1, \
