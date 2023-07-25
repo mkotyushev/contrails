@@ -1,0 +1,36 @@
+program: run/main_sweep.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - --config
+  - run/configs/save.yaml
+  - ${args}
+method: grid
+parameters:
+  model.init_args.library:
+    distribution: constant
+    value: hf
+  model.init_args.architecture:
+    distribution: constant
+    value: upernet
+  model.init_args.backbone_name:
+    distribution: constant
+    value: tf_efficientnetv2_m
+  data.init_args.num_folds:
+    distribution: constant
+    value: 6
+  data.init_args.fold_index_outer:
+    distribution: constant
+    value: 0
+  data.init_args.fold_index:
+    distribution: categorical
+    values:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
