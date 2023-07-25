@@ -201,9 +201,58 @@ class TtaRotate:
         return batch_pred
 
 
+class TtaShift:
+    """Shift image by (dx, dy) pixels."""
+    def __init__(self, dx: int, dy: int, fill_value=0.0) -> None:
+        self.dx = dx
+        self.dy = dy
+        self.fill_value = fill_value
+
+    @staticmethod
+    def _shift(batch: torch.Tensor, dx: int, dy: int, fill: float=0) -> torch.Tensor:
+        N, C, H, W, D = batch.shape
+        # (N, C, H, W, D) -> (N, C, D, H, W)
+        batch = batch.permute(0, 1, 4, 2, 3)
+        # (N, C, D, H, W) -> (N, C * D, H, W)
+        batch = batch.reshape(N, C * D, H, W)
+        batch = F_torchvision.affine(
+            batch,
+            angle=0,
+            translate=[dx, dy],
+            scale=1.0,
+            shear=0.0,
+            interpolation=F_torchvision.InterpolationMode.BILINEAR,
+            fill=fill,
+        )
+        # (N, C * D, H, W) -> (N, C, D, H, W)
+        batch = batch.reshape(N, C, D, H, W)
+        # (N, C, D, H, W) -> (N, C, H, W, D)
+        batch = batch.permute(0, 1, 3, 4, 2)
+        return batch
+
+    def apply(self, batch: torch.Tensor) -> torch.Tensor:
+        return TtaShift._shift(batch, self.dx, self.dy, fill=self.fill_value)
+    
+    def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
+        return TtaShift._shift(batch_pred, -self.dx, -self.dy, fill=torch.nan)
+
+
 class Tta:
-    def __init__(self, model, do_tta, n_random_replays=1, use_hflip=True, use_vflip=True, rotate90_indices=None):
+    def __init__(
+        self, 
+        model, 
+        do_tta, 
+        aggr='mean',
+        n_random_replays=1, 
+        use_hflip=True, 
+        use_vflip=True, 
+        rotate90_indices=None,
+        shift_params=None,
+    ):
         self.do_tta = do_tta
+
+        assert aggr in ['mean', 'min'], f"aggr should be 'mean' or 'min'. Got {aggr}"
+        self.aggr = aggr
 
         assert n_random_replays > 0 or use_hflip or use_vflip or rotate90_indices is not None, \
             "At least one of n_random_replays > 0, "\
@@ -241,10 +290,17 @@ class Tta:
                 TtaRotate(limit_degrees=45, fill_value=fill_value) 
                 for _ in range(n_random_replays)
             ]
+        shifts = [None]
+        if shift_params is not None:
+            shifts = [None] + [
+                TtaShift(dx, dy, fill_value=fill_value) 
+                for dx, dy in shift_params
+            ]
         self.transforms = [
             rotates90,
             flips,
             rotates,
+            shifts,
         ]
 
     def predict(self, batch: torch.Tensor) -> List[torch.Tensor]:
@@ -281,7 +337,11 @@ class Tta:
         
         # Average predictions, ignoring NaNs
         preds = torch.stack(preds, dim=0)
-        preds = torch.nanmean(preds, dim=0)
+
+        if self.aggr == 'mean':
+            preds = torch.nanmean(preds, dim=0)
+        elif self.aggr == 'min':
+            preds = torch.nanmin(preds, dim=0)
         
         return preds
 
