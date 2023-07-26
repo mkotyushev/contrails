@@ -8,7 +8,7 @@ import yaml
 import git
 from copy import deepcopy
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Tuple
 from lightning import LightningDataModule
 from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 from torch.utils.data import DataLoader
@@ -56,7 +56,7 @@ class ContrailsDatamodule(LightningDataModule):
         cache_dir: Optional[Path] = None,
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
         split_info_path: Optional[Path] = None,
-        scale_factor: int = 1,
+        scale_factor: Optional[Tuple[float, float]] = None,
         to_predict: Literal['test', 'val', 'train'] = 'test',
         remove_pseudolabels_from_val_test: bool = True,
         num_frames: Optional[int] = None,
@@ -76,19 +76,22 @@ class ContrailsDatamodule(LightningDataModule):
             assert dataset_kwargs['not_labeled_mode'] == 'video', \
                 'num_frames is valid only for not_labeled_mode == "video"'
 
-        assert scale_factor >= 1, 'scale_factor must be >= 1'
-        if scale_factor > 1:
-            if batch_size_val_test is not None and batch_size_val_test < batch_size:
-                logger.warning(
-                    f'batch_size_val_test is {batch_size_val_test}, '
-                    f'scale_factor is {scale_factor} > 1, '
-                    f'probably batch_size_val_test should be < batch_size '
-                    f'to avoid OOM'
-                )
+        assert scale_factor is None or (scale_factor[0] >= 1 and scale_factor[1] >= 1), \
+            f'both scale_factor values must be >= 1, got {scale_factor}'
+        assert scale_factor is None or (scale_factor[0] <= scale_factor[1]), \
+            f'scale_factor[0] must be <= scale_factor[1], got {scale_factor}'
         
         if batch_size_val_test is None:
             batch_size_val_test = batch_size
-        
+        if scale_factor is not None:
+            if batch_size_val_test >= batch_size:
+                logger.warning(
+                    f'batch_size_val_test >= batch_size ({batch_size_val_test} >= {batch_size}) with '
+                    f'scale_factor[1] = {scale_factor[1]} > 1 that will be used in val and test, '
+                    f'probably batch_size_val_test should be < batch_size '
+                    f'to avoid OOM during val and test'
+                )
+
         self.save_hyperparameters()
 
         assert (
@@ -119,7 +122,7 @@ class ContrailsDatamodule(LightningDataModule):
 
     def build_transforms(self) -> None:
         # Train augmentations
-        if self.hparams.scale_factor == 1:
+        if self.hparams.scale_factor is None:
             train_resize_transform = A.Resize(
                 height=self.hparams.img_size,
                 width=self.hparams.img_size,
@@ -129,7 +132,11 @@ class ContrailsDatamodule(LightningDataModule):
             train_resize_transform = A.RandomResizedCrop(
                 height=self.hparams.img_size,
                 width=self.hparams.img_size,
-                scale=(1 / self.hparams.scale_factor, 1.0),
+                # Scale factor is applied here in the opposite direction
+                # because it is multiplicative
+                # and RandomResizedCrop expects reversed scale factor
+                scale=(1 / self.hparams.scale_factor[1], 1 / self.hparams.scale_factor[0]),
+                ratio=(1.0, 1.0),
                 always_apply=True,
             )
 
@@ -189,11 +196,16 @@ class ContrailsDatamodule(LightningDataModule):
                 )
         
         # Val and test transformations
+        val_test_scale_factor = 1
+        if self.hparams.scale_factor is not None:
+            # Largest scale factor for val and test
+            val_test_scale_factor = self.hparams.scale_factor[1]
+
         self.val_transform = self.test_transform = A.Compose(
             [
                 A.Resize(
-                    height=self.hparams.scale_factor * self.hparams.img_size,
-                    width=self.hparams.scale_factor * self.hparams.img_size,
+                    height=val_test_scale_factor * self.hparams.img_size,
+                    width=val_test_scale_factor * self.hparams.img_size,
                     always_apply=True,
                 ),
                 A.Normalize(
