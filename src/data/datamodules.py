@@ -40,6 +40,7 @@ class ContrailsDatamodule(LightningDataModule):
         fold_index_outer: Optional[int] = None,
         random_state: int = 0,
         img_size: int = 256,
+        img_size_val_test: Optional[int] = None,
         dataset_kwargs: Optional[dict] = None,
         randaugment_num_ops: int = 2,
         randaugment_magnitude: int = 9,
@@ -91,6 +92,9 @@ class ContrailsDatamodule(LightningDataModule):
                     f'probably batch_size_val_test should be < batch_size '
                     f'to avoid OOM during val and test'
                 )
+
+        if img_size_val_test is None:
+            img_size_val_test = img_size
 
         self.save_hyperparameters()
 
@@ -195,17 +199,11 @@ class ContrailsDatamodule(LightningDataModule):
                     always_apply=False,
                 )
         
-        # Val and test transformations
-        val_test_scale_factor = 1
-        if self.hparams.scale_factor is not None:
-            # Largest scale factor for val and test
-            val_test_scale_factor = self.hparams.scale_factor[1]
-
         self.val_transform = self.test_transform = A.Compose(
             [
                 A.Resize(
-                    height=math.ceil(val_test_scale_factor * self.hparams.img_size),
-                    width=math.ceil(val_test_scale_factor * self.hparams.img_size),
+                    height=self.hparams.img_size_val_test,
+                    width=self.hparams.img_size_val_test,
                     always_apply=True,
                 ),
                 A.Normalize(

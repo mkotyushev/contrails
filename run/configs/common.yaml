@@ -155,6 +155,7 @@ data:
     fold_index: 0
     fold_index_outer: null
     img_size: 256
+    img_size_val_test: null  # same as img_size
     random_state: 0
     randaugment_num_ops: 3
     randaugment_magnitude: 9
