@@ -204,8 +204,8 @@ class ContrailsDatamodule(LightningDataModule):
         self.val_transform = self.test_transform = A.Compose(
             [
                 A.Resize(
-                    height=val_test_scale_factor * self.hparams.img_size,
-                    width=val_test_scale_factor * self.hparams.img_size,
+                    height=math.ceil(val_test_scale_factor * self.hparams.img_size),
+                    width=math.ceil(val_test_scale_factor * self.hparams.img_size),
                     always_apply=True,
                 ),
                 A.Normalize(
