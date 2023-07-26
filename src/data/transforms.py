@@ -220,27 +220,37 @@ class TtaShift:
 
 class TtaScale:
     """Scale image by factor."""
-    def __init__(self, factor: float, fill_value=0.0) -> None:
+    def __init__(self, factor: float) -> None:
         self.factor = factor
-        self.fill_value = fill_value
+        self.original_shape = None
 
     @staticmethod
-    def _scale(batch: torch.Tensor, factor: float, fill: float=0) -> torch.Tensor:
+    def _scale(batch: torch.Tensor, size: float) -> torch.Tensor:
         # (N, C, H, W)
         return F_torchvision.resize(
             batch,
-            size=(factor * torch.tensor(batch.shape[-2:])).long(),
+            size=size,
             interpolation=F_torchvision.InterpolationMode.BILINEAR,
             antialias=True,
         )
 
     def apply(self, batch: torch.Tensor) -> torch.Tensor:
         # (N, C, H, W)
-        return TtaScale._scale(batch, self.factor, fill=self.fill_value)
+        assert self.original_shape is None, "TtaScale should be applied only once."
+        self.original_shape = batch.shape[-2:]
+        return TtaScale._scale(
+            batch, 
+            (self.factor * torch.tensor(batch.shape[-2:])).long(), 
+        )
     
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
         # (N, C = 1, H, W)
-        return TtaScale._scale(batch_pred, 1 / self.factor, fill=torch.nan)
+        result = TtaScale._scale(
+            batch_pred, 
+            self.original_shape, 
+        )
+        self.original_shape = None
+        return result
 
 
 class Tta:
@@ -314,7 +324,7 @@ class Tta:
         scales = [None]
         if scale_factors is not None:
             scales = [None] + [
-                TtaScale(factor, fill_value=fill_value) 
+                TtaScale(factor) 
                 for factor in scale_factors
             ]
         self.transforms = [

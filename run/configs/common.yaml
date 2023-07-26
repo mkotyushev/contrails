@@ -89,7 +89,9 @@ model:
     #   use_vflip: false
     #   rotate90_indices: null
     #   shift_params: null
-    #   scale_factors: [2, 4]
+    #   # scale_factors: [0.875, 1.125]  # 256 +- 32
+    #   # scale_factors: [0.9375, 1.0625]  # 512 +- 32
+    #   # scale_factors: [0.96875, 1.03125]  # 1024 +- 32
     pretrained: imagenet
     mechanize: false
     loss_name: bce=0.9+dice=0.1
