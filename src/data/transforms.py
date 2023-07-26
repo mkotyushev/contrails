@@ -231,6 +231,7 @@ class TtaScale:
             batch,
             size=(factor * torch.tensor(batch.shape[-2:])).long(),
             interpolation=F_torchvision.InterpolationMode.BILINEAR,
+            antialias=True,
         )
 
     def apply(self, batch: torch.Tensor) -> torch.Tensor:
@@ -257,7 +258,8 @@ class Tta:
     ):
         self.do_tta = do_tta
 
-        assert aggr in ['mean', 'min'], f"aggr should be 'mean' or 'min'. Got {aggr}"
+        assert aggr in ['mean', 'min', 'max'], \
+            f"aggr should be 'mean', 'min' or 'max'. Got {aggr}"
         self.aggr = aggr
 
         assert (
@@ -361,7 +363,23 @@ class Tta:
         if self.aggr == 'mean':
             preds = torch.nanmean(preds, dim=0)
         elif self.aggr == 'min':
-            preds = torch.nanmin(preds, dim=0)
+            preds, _ = torch.min(
+                torch.where(
+                    preds.isnan(),
+                    torch.tensor(float('inf'), device=preds.device),
+                    preds
+                ), 
+                dim=0
+            )
+        elif self.aggr == 'max':
+            preds, _ = torch.max(
+                torch.where(
+                    preds.isnan(),
+                    torch.tensor(float('-inf'), device=preds.device),
+                    preds
+                ), 
+                dim=0
+            )
         
         return preds
 
