@@ -83,10 +83,13 @@ model:
     log_preview_every_n_epochs: 1
     tta_params: null
     # tta_params: 
+    #   aggr: mean
     #   n_random_replays: 0
-    #   use_hflip: true
-    #   use_vflip: true
-    #   rotate90_indices: [1, 2, 3]
+    #   use_hflip: false
+    #   use_vflip: false
+    #   rotate90_indices: null
+    #   shift_params: null
+    #   scale_factors: [2, 4]
     pretrained: imagenet
     mechanize: false
     loss_name: bce=0.9+dice=0.1
