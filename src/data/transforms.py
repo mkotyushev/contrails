@@ -237,6 +237,40 @@ class TtaShift:
         return TtaShift._shift(batch_pred, -self.dx, -self.dy, fill=torch.nan)
 
 
+class TtaScale:
+    """Scale image by factor."""
+    def __init__(self, factor: float) -> None:
+        self.factor = factor
+
+    @staticmethod
+    def _scale(batch: torch.Tensor, factor: float, fill: float=0) -> torch.Tensor:
+        N, C, H, W, D = batch.shape
+        # (N, C, H, W, D) -> (N, C, D, H, W)
+        batch = batch.permute(0, 1, 4, 2, 3)
+        # (N, C, D, H, W) -> (N, C * D, H, W)
+        batch = batch.reshape(N, C * D, H, W)
+        batch = F_torchvision.affine(
+            batch,
+            angle=0,
+            translate=[0, 0],
+            scale=factor,
+            shear=0.0,
+            interpolation=F_torchvision.InterpolationMode.BILINEAR,
+            fill=fill,
+        )
+        # (N, C * D, H, W) -> (N, C, D, H, W)
+        batch = batch.reshape(N, C, D, H, W)
+        # (N, C, D, H, W) -> (N, C, H, W, D)
+        batch = batch.permute(0, 1, 3, 4, 2)
+        return batch
+
+    def apply(self, batch: torch.Tensor) -> torch.Tensor:
+        return TtaScale._scale(batch, self.factor, fill=self.fill_value)
+    
+    def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
+        return TtaScale._scale(batch_pred, 1 / self.factor, fill=torch.nan)
+
+
 class Tta:
     def __init__(
         self, 
@@ -248,6 +282,7 @@ class Tta:
         use_vflip=True, 
         rotate90_indices=None,
         shift_params=None,
+        scale_factors=None,
     ):
         self.do_tta = do_tta
 
@@ -296,11 +331,18 @@ class Tta:
                 TtaShift(dx, dy, fill_value=fill_value) 
                 for dx, dy in shift_params
             ]
+        scales = [None]
+        if scale_factors is not None:
+            scales = [None] + [
+                TtaScale(factor) 
+                for factor in scale_factors
+            ]
         self.transforms = [
             rotates90,
             flips,
             rotates,
             shifts,
+            scales,
         ]
 
     def predict(self, batch: torch.Tensor) -> List[torch.Tensor]:
