@@ -239,8 +239,9 @@ class TtaShift:
 
 class TtaScale:
     """Scale image by factor."""
-    def __init__(self, factor: float) -> None:
+    def __init__(self, factor: float, fill_value=0.0) -> None:
         self.factor = factor
+        self.fill_value = fill_value
 
     @staticmethod
     def _scale(batch: torch.Tensor, factor: float, fill: float=0) -> torch.Tensor:
@@ -334,7 +335,7 @@ class Tta:
         scales = [None]
         if scale_factors is not None:
             scales = [None] + [
-                TtaScale(factor) 
+                TtaScale(factor, fill_value=fill_value) 
                 for factor in scale_factors
             ]
         self.transforms = [
