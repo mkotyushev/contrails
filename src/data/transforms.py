@@ -125,7 +125,7 @@ class CutMix:
 
 class TtaHorizontalFlip:
     def apply(self, batch: torch.Tensor) -> torch.Tensor:
-        # (N, C, H, W, D)
+        # (N, C, H, W)
         return batch.flip(3)
     
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
@@ -135,7 +135,7 @@ class TtaHorizontalFlip:
 
 class TtaVerticalFlip:
     def apply(self, batch: torch.Tensor) -> torch.Tensor:
-        # (N, C, H, W, D)
+        # (N, C, H, W)
         return batch.flip(2)
     
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
@@ -149,7 +149,7 @@ class TtaRotate90:
         self.n_rot = n_rot % 4
     
     def apply(self, batch: torch.Tensor) -> torch.Tensor:
-        # (N, C, H, W, D)
+        # (N, C, H, W)
         return batch.rot90(self.n_rot, (2, 3))
 
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
@@ -165,38 +165,26 @@ class TtaRotate:
 
     @staticmethod
     def _rotate(batch: torch.Tensor, angle: int, fill: float=0) -> torch.Tensor:
-        N, C, H, W, D = batch.shape
-        # (N, C, H, W, D) -> (N, C, D, H, W)
-        batch = batch.permute(0, 1, 4, 2, 3)
-        # (N, C, D, H, W) -> (N, C * D, H, W)
-        batch = batch.reshape(N, C * D, H, W)
-        batch = F_torchvision.rotate(
+        # (N, C, H, W)
+        return F_torchvision.rotate(
             batch,
             angle,
             interpolation=F_torchvision.InterpolationMode.BILINEAR,
             expand=False,
             fill=fill,
         )
-        # (N, C * D, H, W) -> (N, C, D, H, W)
-        batch = batch.reshape(N, C, D, H, W)
-        # (N, C, D, H, W) -> (N, C, H, W, D)
-        batch = batch.permute(0, 1, 3, 4, 2)
-        return batch
 
     def apply(self, batch: torch.Tensor) -> torch.Tensor:
+        # (N, C, H, W)
         assert self.angle is None, "TtaRotate should be applied only once."
-        # (N, C, H, W, D)
         self.angle = random.randint(-self.limit_degrees, self.limit_degrees) 
         return TtaRotate._rotate(batch, self.angle, fill=self.fill_value)
 
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
+        # (N, C = 1, H, W)
         assert self.angle is not None, "TtaRotate should be applied before TtaRotate.apply_inverse_to_pred."
-        # (N, C = 1, H, W) -> (N, C = 1, H, W, D = 1)
-        batch_pred = batch_pred.unsqueeze(-1)
         # Fill with NaNs to ignore them in averaging
         batch_pred = TtaRotate._rotate(batch_pred, -self.angle, fill=torch.nan)
-        # (N, C = 1, H, W, D = 1) -> (N, C = 1, H, W)
-        batch_pred = batch_pred.squeeze(-1)
         self.angle = None
         return batch_pred
 
@@ -210,12 +198,8 @@ class TtaShift:
 
     @staticmethod
     def _shift(batch: torch.Tensor, dx: int, dy: int, fill: float=0) -> torch.Tensor:
-        N, C, H, W, D = batch.shape
-        # (N, C, H, W, D) -> (N, C, D, H, W)
-        batch = batch.permute(0, 1, 4, 2, 3)
-        # (N, C, D, H, W) -> (N, C * D, H, W)
-        batch = batch.reshape(N, C * D, H, W)
-        batch = F_torchvision.affine(
+        # (N, C, H, W)
+        return F_torchvision.affine(
             batch,
             angle=0,
             translate=[dx, dy],
@@ -224,16 +208,13 @@ class TtaShift:
             interpolation=F_torchvision.InterpolationMode.BILINEAR,
             fill=fill,
         )
-        # (N, C * D, H, W) -> (N, C, D, H, W)
-        batch = batch.reshape(N, C, D, H, W)
-        # (N, C, D, H, W) -> (N, C, H, W, D)
-        batch = batch.permute(0, 1, 3, 4, 2)
-        return batch
 
     def apply(self, batch: torch.Tensor) -> torch.Tensor:
+        # (N, C, H, W)
         return TtaShift._shift(batch, self.dx, self.dy, fill=self.fill_value)
     
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
+        # (N, C = 1, H, W)
         return TtaShift._shift(batch_pred, -self.dx, -self.dy, fill=torch.nan)
 
 
@@ -245,30 +226,19 @@ class TtaScale:
 
     @staticmethod
     def _scale(batch: torch.Tensor, factor: float, fill: float=0) -> torch.Tensor:
-        N, C, H, W, D = batch.shape
-        # (N, C, H, W, D) -> (N, C, D, H, W)
-        batch = batch.permute(0, 1, 4, 2, 3)
-        # (N, C, D, H, W) -> (N, C * D, H, W)
-        batch = batch.reshape(N, C * D, H, W)
-        batch = F_torchvision.affine(
+        # (N, C, H, W)
+        return F_torchvision.resize(
             batch,
-            angle=0,
-            translate=[0, 0],
-            scale=factor,
-            shear=0.0,
+            size=(factor * torch.tensor(batch.shape[-2:])).long(),
             interpolation=F_torchvision.InterpolationMode.BILINEAR,
-            fill=fill,
         )
-        # (N, C * D, H, W) -> (N, C, D, H, W)
-        batch = batch.reshape(N, C, D, H, W)
-        # (N, C, D, H, W) -> (N, C, H, W, D)
-        batch = batch.permute(0, 1, 3, 4, 2)
-        return batch
 
     def apply(self, batch: torch.Tensor) -> torch.Tensor:
+        # (N, C, H, W)
         return TtaScale._scale(batch, self.factor, fill=self.fill_value)
     
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
+        # (N, C = 1, H, W)
         return TtaScale._scale(batch_pred, 1 / self.factor, fill=torch.nan)
 
 
@@ -290,7 +260,14 @@ class Tta:
         assert aggr in ['mean', 'min'], f"aggr should be 'mean' or 'min'. Got {aggr}"
         self.aggr = aggr
 
-        assert n_random_replays > 0 or use_hflip or use_vflip or rotate90_indices is not None, \
+        assert (
+            n_random_replays > 0 or 
+            use_hflip or 
+            use_vflip or 
+            rotate90_indices is not None or
+            shift_params is not None or
+            scale_factors is not None
+        ), \
             "At least one of n_random_replays > 0, "\
             "use_hflip or use_vflip or rotate90_indices is not None should be True."
         assert rotate90_indices is None or all([i > 0 and i <= 3 for i in rotate90_indices]), \
