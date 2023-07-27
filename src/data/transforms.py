@@ -1,7 +1,9 @@
 import itertools
+import math
 import random
 import numpy as np
 import torch
+from albumentations import RandomResizedCrop
 from typing import Dict, List
 from torchvision.transforms import functional as F_torchvision
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
@@ -427,3 +429,50 @@ class RandomSubsequence:
         kwargs["mask"] = kwargs["mask"][..., start_index:start_index + self.num_frames]
 
         return kwargs
+
+
+class RandomResizedCropUniformArea(RandomResizedCrop):
+    """Same as RandomResizedCrop, but with uniformly distributed area 
+    of the crop instead of uniformly distributed scale.
+    """
+    def get_params_dependent_on_targets(self, params):
+        img = params["image"]
+        area = img.shape[0] * img.shape[1]
+
+        for _attempt in range(10):
+            target_area = random.uniform(self.scale[0] * area, self.scale[1] * area)
+            log_ratio = (math.log(self.ratio[0]), math.log(self.ratio[1]))
+            aspect_ratio = math.exp(random.uniform(*log_ratio))
+
+            w = int(round(math.sqrt(target_area * aspect_ratio)))  # skipcq: PTC-W0028
+            h = int(round(math.sqrt(target_area / aspect_ratio)))  # skipcq: PTC-W0028
+
+            if 0 < w <= img.shape[1] and 0 < h <= img.shape[0]:
+                i = random.randint(0, img.shape[0] - h)
+                j = random.randint(0, img.shape[1] - w)
+                return {
+                    "crop_height": h,
+                    "crop_width": w,
+                    "h_start": i * 1.0 / (img.shape[0] - h + 1e-10),
+                    "w_start": j * 1.0 / (img.shape[1] - w + 1e-10),
+                }
+
+        # Fallback to central crop
+        in_ratio = img.shape[1] / img.shape[0]
+        if in_ratio < min(self.ratio):
+            w = img.shape[1]
+            h = int(round(w / min(self.ratio)))
+        elif in_ratio > max(self.ratio):
+            h = img.shape[0]
+            w = int(round(h * max(self.ratio)))
+        else:  # whole image
+            w = img.shape[1]
+            h = img.shape[0]
+        i = (img.shape[0] - h) // 2
+        j = (img.shape[1] - w) // 2
+        return {
+            "crop_height": h,
+            "crop_width": w,
+            "h_start": i * 1.0 / (img.shape[0] - h + 1e-10),
+            "w_start": j * 1.0 / (img.shape[1] - w + 1e-10),
+        }

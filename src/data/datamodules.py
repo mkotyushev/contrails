@@ -20,6 +20,7 @@ from src.data.transforms import (
     CopyPastePositive,
     CutMix,
     MixUp,
+    RandomResizedCropUniformArea,
     RandomSubsequence,
 )
 from src.utils.utils import contrails_collate_fn
@@ -62,6 +63,7 @@ class ContrailsDatamodule(LightningDataModule):
         remove_pseudolabels_from_val_test: bool = True,
         num_frames: Optional[int] = None,
         test_as_aux_val: bool = False,
+        crop_uniform: Literal['scale', 'area'] = 'scale',
     ):
         super().__init__()
 
@@ -134,16 +136,31 @@ class ContrailsDatamodule(LightningDataModule):
                 always_apply=True,
             )
         else:
-            train_resize_transform = A.RandomResizedCrop(
-                height=self.hparams.img_size,
-                width=self.hparams.img_size,
-                # Scale factor is applied here in the opposite direction
-                # because it is multiplicative
-                # and RandomResizedCrop expects reversed scale factor
-                scale=(1 / self.hparams.scale_factor[1], 1 / self.hparams.scale_factor[0]),
-                ratio=(1.0, 1.0),
-                always_apply=True,
-            )
+            if self.hparams.crop_uniform == 'scale':
+                # Default albumentations behavior
+                train_resize_transform = A.RandomResizedCrop(
+                    height=self.hparams.img_size,
+                    width=self.hparams.img_size,
+                    # Scale factor is applied here in the opposite direction
+                    # because it is multiplicative
+                    # and RandomResizedCrop expects reversed scale factor
+                    scale=(1 / self.hparams.scale_factor[1], 1 / self.hparams.scale_factor[0]),
+                    ratio=(1.0, 1.0),
+                    always_apply=True,
+                )
+            elif self.hparams.crop_uniform == 'area':
+                # Uniformly sample crop area to show the model
+                # all the possible resolutions equally
+                train_resize_transform = RandomResizedCropUniformArea(
+                    height=self.hparams.img_size,
+                    width=self.hparams.img_size,
+                    # Scale factor is applied here in the opposite direction
+                    # because it is multiplicative
+                    # and RandomResizedCrop expects reversed scale factor
+                    scale=(1 / self.hparams.scale_factor[1], 1 / self.hparams.scale_factor[0]),
+                    ratio=(1.0, 1.0),
+                    always_apply=True,
+                )
 
         aug_transform = []
         if self.hparams.randaugment_num_ops > 0:

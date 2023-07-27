@@ -162,6 +162,7 @@ data:
     randaugment_num_ops: 3
     randaugment_magnitude: 9
     scale_factor: null
+    crop_uniform: scale
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: weighted
