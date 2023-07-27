@@ -1141,6 +1141,7 @@ class SegmentationModule(BaseModule):
         pretrained_ckpt_path: Optional[Path] = None,
         add_dice_thresholded: bool = False,
         num_frames: Optional[int] = None,
+        add_dataloader_idx: bool = False,
     ):
         super().__init__(
             optimizer_init=optimizer_init,
@@ -1322,6 +1323,7 @@ class SegmentationModule(BaseModule):
             {
                 't_metrics': deepcopy(metrics),
                 'v_metrics': deepcopy(metrics),
+                'v_aux_metrics': deepcopy(metrics),  # If val and test used for validation
                 'v_tta_metrics': deepcopy(metrics),
             }
         )
@@ -1395,7 +1397,10 @@ class SegmentationModule(BaseModule):
         only_labeled = self.hparams.architecture == 'video_mask2former'
         total_loss, losses, preds = self.compute_loss_preds(batch, only_labeled=only_labeled, **kwargs)
         
-        assert dataloader_idx is None or dataloader_idx == 0, 'Only one val dataloader is supported.'
+        if not self.hparams.add_dataloader_idx:
+            assert dataloader_idx is None or dataloader_idx == 0, \
+                'Only one val dataloader is supported.'
+        
         for loss_name, loss in losses.items():
             self.log(
                 f'{loss_prefix}_{loss_name}', 
@@ -1403,7 +1408,7 @@ class SegmentationModule(BaseModule):
                 on_step=False,
                 on_epoch=True,
                 prog_bar=True,
-                add_dataloader_idx=False,
+                add_dataloader_idx=self.hparams.add_dataloader_idx,
                 batch_size=batch['image'].shape[0],
             )
         self.log(
@@ -1412,11 +1417,18 @@ class SegmentationModule(BaseModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            add_dataloader_idx=False,
+            add_dataloader_idx=self.hparams.add_dataloader_idx,
             batch_size=batch['image'].shape[0],
         )
         
-        span_prefix = 'v'
+        if not self.hparams.add_dataloader_idx:
+            span_prefix = 'v'
+        else:
+            if dataloader_idx == 0:
+                span_prefix = 'v'
+            elif dataloader_idx == 1:
+                span_prefix = 'v_aux'
+
         y, y_pred = self.extract_targets_and_probas_for_metric(preds, batch)
         for metric in self.metrics[f'{span_prefix}_metrics'].values():
             if isinstance(metric, PredictionTargetPreviewAgg) and batch['indices'] is not None:
@@ -1470,45 +1482,49 @@ class SegmentationModule(BaseModule):
         """Called in the validation loop at the very end of the epoch."""
         if self.metrics is None:
             return
+        
+        span_prefixes = ['v']
+        if self.hparams.add_dataloader_idx:
+            span_prefixes = ['v', 'v_aux']
 
-        metric_prefix = span_prefix = 'v'
-        for metric_name, metric in self.metrics[f'{span_prefix}_metrics'].items():
-            if isinstance(metric, PredictionTargetPreviewAgg):
-                metric_values, captions, previews = metric.compute()
-                if self.current_epoch % self.hparams.log_preview_every_n_epochs == 0:
-                    self.trainer.logger.log_image(
-                        key=f'{metric_prefix}_{metric_name}',	
-                        images=previews,
-                        caption=captions,
-                        step=self.current_epoch,
-                    )
-                for name, value in metric_values.items():
+        for span_prefix in span_prefixes:
+            for metric_name, metric in self.metrics[f'{span_prefix}_metrics'].items():
+                if isinstance(metric, PredictionTargetPreviewAgg):
+                    metric_values, captions, previews = metric.compute()
+                    if self.current_epoch % self.hparams.log_preview_every_n_epochs == 0:
+                        self.trainer.logger.log_image(
+                            key=f'{span_prefix}_{metric_name}',	
+                            images=previews,
+                            caption=captions,
+                            step=self.current_epoch,
+                        )
+                    for name, value in metric_values.items():
+                        self.log(
+                            f'{span_prefix}_{name}',
+                            value,
+                            on_step=False,
+                            on_epoch=True,
+                            prog_bar=True,
+                        )
+                elif isinstance(metric, PredictionTargetPreviewGrid):
+                    captions, previews = metric.compute()
+                    metric.reset()
+                    if self.current_epoch % self.hparams.log_preview_every_n_epochs == 0:
+                        self.trainer.logger.log_image(
+                            key=f'v_{metric_name}',	
+                            images=previews,
+                            caption=captions,
+                            step=self.current_epoch,
+                        )
+                else:
                     self.log(
-                        f'{metric_prefix}_{name}',
-                        value,
+                        f'{span_prefix}_{metric_name}',
+                        metric.compute(),
                         on_step=False,
                         on_epoch=True,
                         prog_bar=True,
                     )
-            elif isinstance(metric, PredictionTargetPreviewGrid):
-                captions, previews = metric.compute()
                 metric.reset()
-                if self.current_epoch % self.hparams.log_preview_every_n_epochs == 0:
-                    self.trainer.logger.log_image(
-                        key=f'v_{metric_name}',	
-                        images=previews,
-                        caption=captions,
-                        step=self.current_epoch,
-                    )
-            else:
-                self.log(
-                    f'{metric_prefix}_{metric_name}',
-                    metric.compute(),
-                    on_step=False,
-                    on_epoch=True,
-                    prog_bar=True,
-                )
-            metric.reset()
 
     def extract_targets_and_probas_for_metric(self, preds, batch):
         """Extract preds and targets from batch.

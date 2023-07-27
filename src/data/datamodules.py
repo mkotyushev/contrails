@@ -61,6 +61,7 @@ class ContrailsDatamodule(LightningDataModule):
         to_predict: Literal['test', 'val', 'train'] = 'test',
         remove_pseudolabels_from_val_test: bool = True,
         num_frames: Optional[int] = None,
+        test_as_aux_val: bool = False,
     ):
         super().__init__()
 
@@ -529,7 +530,7 @@ class ContrailsDatamodule(LightningDataModule):
             drop_last=drop_last,  # for compiling
         )
 
-    def val_dataloader(self) -> DataLoader:
+    def val_dataloader(self) -> DataLoader | List[DataLoader]:
         val_dataloader = DataLoader(
             dataset=self.val_dataset, 
             batch_size=self.hparams.batch_size_val_test, 
@@ -541,7 +542,11 @@ class ContrailsDatamodule(LightningDataModule):
             shuffle=False
         )
         
-        return val_dataloader
+        if not self.hparams.test_as_aux_val:
+            return val_dataloader
+        
+        aux_val_dataloader = self.test_dataloader()
+        return [val_dataloader, aux_val_dataloader]
 
     def test_dataloader(self) -> DataLoader:
         assert self.test_dataset is not None, "test dataset is not defined"

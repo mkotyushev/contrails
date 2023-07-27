@@ -144,6 +144,7 @@ model:
     pretrained_ckpt_path: null
     num_frames: null  # only for not_labeled_mode == "video"
     add_dice_thresholded: false
+    add_dataloader_idx: false
 data:
   class_path: src.data.datamodules.ContrailsDatamodule
   init_args:
@@ -154,6 +155,7 @@ data:
     num_folds: 5
     fold_index: 0
     fold_index_outer: null
+    test_as_aux_val: false
     img_size: 256
     img_size_val_test: null  # same as img_size
     random_state: 0

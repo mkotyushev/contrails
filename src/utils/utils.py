@@ -55,6 +55,10 @@ class MyLightningCLI(LightningCLI):
             "data.init_args.num_frames", 
             "model.init_args.num_frames",
         )
+        parser.link_arguments(
+            "data.init_args.test_as_aux_val", 
+            "model.init_args.add_dataloader_idx",
+        )
 
 
 class MyLightningCLISweep(MyLightningCLI):
