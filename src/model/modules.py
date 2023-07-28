@@ -1114,7 +1114,17 @@ class SegmentationModule(BaseModule):
     def __init__(
         self, 
         library: Literal['smp_old', 'smp', 'hf', 'eva', 'mmseg'] = 'smp',
-        architecture: Literal['unet', 'upernet', 'segformer', 'mask2former', 'video_mask2former'] = 'unet',
+        architecture: Literal[
+            'unet', 
+            'upernet', 
+            'segformer', 
+            'mask2former', 
+            'video_mask2former',
+            'fpn',
+            'unetpp',
+            'deeplabv3',
+            'deeplabv3plus',
+        ] = 'unet',
         backbone_name: str = 'timm-efficientnet-b5',
         in_channels: int = 6,
         log_preview_every_n_epochs: int = 10,
