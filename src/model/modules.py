@@ -1119,6 +1119,7 @@ class SegmentationModule(BaseModule):
         in_channels: int = 6,
         log_preview_every_n_epochs: int = 10,
         tta_params: Dict[str, Any] = None,
+        tta_single_index: Optional[int] = None,
         pretrained: Optional[str] = 'imagenet',
         label_smoothing: float = 0.0,
         pos_weight: Optional[float] = None,
@@ -1225,6 +1226,7 @@ class SegmentationModule(BaseModule):
         self.tta = Tta(
             model=self.model, 
             do_tta=len(tta_params) > 0, 
+            single_index=tta_single_index,
             **tta_params
         )
 

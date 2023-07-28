@@ -1,6 +1,7 @@
 import itertools
 import math
 import random
+import logging
 import numpy as np
 import torch
 from albumentations import RandomResizedCrop
@@ -9,6 +10,10 @@ from torchvision.transforms import functional as F_torchvision
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 from src.data.datasets import N_TIMES
+
+
+logger = logging.getLogger(__name__)
+
 
 ###################################################################
 ##################### CV ##########################################
@@ -124,7 +129,6 @@ class CutMix:
         return kwargs
 
 
-
 class TtaHorizontalFlip:
     def apply(self, batch: torch.Tensor) -> torch.Tensor:
         # (N, C, H, W)
@@ -133,6 +137,9 @@ class TtaHorizontalFlip:
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
         # (N, C = 1, H, W)
         return batch_pred.flip(3)
+
+    def __repr__(self) -> str:
+        return f"TtaHorizontalFlip()"
 
 
 class TtaVerticalFlip:
@@ -143,6 +150,9 @@ class TtaVerticalFlip:
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
         # (N, C = 1, H, W)
         return batch_pred.flip(2)
+    
+    def __repr__(self) -> str:
+        return f"TtaVerticalFlip()"
 
 
 class TtaRotate90:
@@ -157,6 +167,9 @@ class TtaRotate90:
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
         # (N, C = 1, H, W)
         return batch_pred.rot90(-self.n_rot, (2, 3))
+    
+    def __repr__(self) -> str:
+        return f"TtaRotate90(n_rot={self.n_rot})"
 
 
 class TtaRotate:
@@ -190,6 +203,9 @@ class TtaRotate:
         self.angle = None
         return batch_pred
 
+    def __repr__(self) -> str:
+        return f"TtaRotate(limit_degrees={self.limit_degrees}, fill_value={self.fill_value})"
+
 
 class TtaShift:
     """Shift image by (dx, dy) pixels."""
@@ -217,7 +233,19 @@ class TtaShift:
     
     def apply_inverse_to_pred(self, batch_pred: torch.Tensor) -> torch.Tensor:
         # (N, C = 1, H, W)
-        return TtaShift._shift(batch_pred, -self.dx, -self.dy, fill=torch.nan)
+
+        # Seemingly there is a bug in torchvision.affine:
+        # if fill=torch.nan all the image is filled with nans,
+        # so fill manually with masking
+        mask = torch.zeros_like(batch_pred).bool()
+        mask = TtaShift._shift(mask, -self.dx, -self.dy, fill=True)
+        batch_pred = TtaShift._shift(batch_pred, -self.dx, -self.dy, fill=0)
+        batch_pred[mask] = torch.nan
+        
+        return batch_pred
+    
+    def __repr__(self) -> str:
+        return f"TtaShift(dx={self.dx}, dy={self.dy}, fill_value={self.fill_value})"
 
 
 class TtaScale:
@@ -253,6 +281,9 @@ class TtaScale:
         )
         self.original_shape = None
         return result
+    
+    def __repr__(self) -> str:
+        return f"TtaScale(factor={self.factor})"
 
 
 class Tta:
@@ -261,6 +292,7 @@ class Tta:
         model, 
         do_tta, 
         aggr='mean',
+        single_index=None,
         n_random_replays=1, 
         use_hflip=True, 
         use_vflip=True, 
@@ -337,6 +369,14 @@ class Tta:
             scales,
         ]
 
+        # Select single transform if needed
+        if single_index is not None:
+            product = list(itertools.product(*self.transforms))
+            assert single_index >= 0 and single_index < len(product), \
+                f"single_index should be in [0, {len(product) - 1}]. Got {single_index}"
+            self.transforms = [[t] for t in product[single_index]]
+            logger.info(f"Selected single (of {len(product)}) transform chain: {product[single_index]}")
+
     def predict(self, batch: torch.Tensor) -> List[torch.Tensor]:
         preds = []
 
@@ -392,6 +432,10 @@ class Tta:
                 ), 
                 dim=0
             )
+
+        # Remove nans (could be there if full nan / 
+        # a single transform with nan fill value was applied)
+        preds[preds.isnan()] = 0.0
         
         return preds
 
