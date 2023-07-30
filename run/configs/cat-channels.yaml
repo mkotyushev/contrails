@@ -15,3 +15,4 @@ data:
       conversion_type: ash
       quantize: true
       stats_precomputed: false
+    cache_dir: cache_cat_channels
