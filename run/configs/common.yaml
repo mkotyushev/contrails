@@ -177,7 +177,7 @@ data:
     crop_uniform: scale
     dataset_kwargs:
       band_ids: [11, 14, 15]
-      mask_type: weighted
+      mask_type: voting50
       not_labeled_mode: null
       pseudolabels_path: null
       conversion_type: ash
