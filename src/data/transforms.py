@@ -587,10 +587,8 @@ class SelectConcatTransform:
 
         # Concatenate frames
         if self.cat_mode == 'channel':
-            # Same way as in dataset: stack frames along channel axis
-
-            # (H, W, C, len(self.time_indices)) -> (H, W, C * len(self.time_indices))
-            image = image.reshape(*image.shape[:-2], -1)
+            # (H, W, C, len(self.time_indices)) -> (H, W, len(self.time_indices) * C)
+            image = image.transpose(3, 2).reshape(*image.shape[:-2], -1)
         elif self.cat_mode == 'spatial':
             # Group frames into square spatial grid
             H, W, C, N = image.shape
