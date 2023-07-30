@@ -1,0 +1,17 @@
+model:
+  init_args:
+    in_channels: 15
+data:
+  init_args:
+    randaugment_num_ops: 0  # TODO: enable rand augment for cat-channels
+    randaugment_magnitude: 0
+    cat_mode: channel
+    num_frames: 5  # only for not_labeled_mode == "video"
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: voting50
+      not_labeled_mode: video
+      pseudolabels_path: null
+      conversion_type: ash
+      quantize: true
+      stats_precomputed: false

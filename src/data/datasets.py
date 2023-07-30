@@ -193,10 +193,6 @@ class ContrailsDataset:
         assert mask_type is None or mask_type in ('voting50', 'mean', 'weighted')
         self.mask_type = mask_type
 
-        if not_labeled_mode is not None and mask_type is not None:
-            assert pseudolabels_path is not None, \
-                'pseudolabels_path must be provided if not_labeled_mode is not None ' \
-                'and mask_type is not None'
         self.not_labeled_mode = not_labeled_mode
         if pseudolabels_path is not None and isinstance(pseudolabels_path, str):
             pseudolabels_path = Path(pseudolabels_path)

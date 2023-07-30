@@ -536,7 +536,7 @@ class SelectConcatTransform:
             f'num_total_frames should be > 1. Got {num_total_frames}'
         assert num_total_frames is None or num_total_frames <= N_TIMES, \
             f'num_total_frames should be <= {N_TIMES}. Got {num_total_frames}'
-        assert time_indices is None or all([i > 0 and i <= N_TIMES for i in time_indices]), \
+        assert time_indices is None or all([i >= 0 and i < N_TIMES for i in time_indices]), \
             f"time_indices should be in [0, {N_TIMES}]. Got {time_indices}"
         assert time_indices is None or len(time_indices) == len(set(time_indices)), \
             f"time_indices should not contain duplicates. Got {time_indices}"
@@ -548,7 +548,8 @@ class SelectConcatTransform:
         if num_total_frames is not None and time_indices is not None:
             assert num_total_frames >= len(time_indices), \
                 f"num_total_frames should be >= len(time_indices). Got {num_total_frames} and {len(time_indices)}"
-        
+        self.num_total_frames = num_total_frames
+
         self.time_indices = time_indices
         self.cat_mode = cat_mode
         self.fill_value = fill_value
@@ -585,12 +586,12 @@ class SelectConcatTransform:
         image = image[..., self.time_indices]
 
         # Concatenate frames
-        if self.cat_mode == 'spatial':
+        if self.cat_mode == 'channel':
             # Same way as in dataset: stack frames along channel axis
 
             # (H, W, C, len(self.time_indices)) -> (H, W, C * len(self.time_indices))
             image = image.reshape(*image.shape[:-2], -1)
-        else:
+        elif self.cat_mode == 'spatial':
             # Group frames into square spatial grid
             H, W, C, N = image.shape
             assert H == W

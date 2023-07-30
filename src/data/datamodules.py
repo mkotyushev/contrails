@@ -180,13 +180,22 @@ class ContrailsDatamodule(LightningDataModule):
                     )
                 ]
             else:
-                n_frames_tranform = [
-                    SelectConcatTransform(
-                        cat_mode=self.hparams.cat_mode,
-                        num_total_frames=self.hparams.num_frames,
-                        time_indices=[LABELED_TIME_INDEX],
-                    )
-                ]
+                if self.hparams.cat_mode == 'channel':
+                    n_frames_tranform = [
+                        SelectConcatTransform(
+                            cat_mode='channel',
+                            num_total_frames=None,
+                            time_indices=list(range(self.hparams.num_frames)),
+                        )
+                    ]
+                elif self.hparams.cat_mode == 'spatial':
+                    n_frames_tranform = [
+                        SelectConcatTransform(
+                            cat_mode='spatial',
+                            num_total_frames=self.hparams.num_frames,
+                            time_indices=[LABELED_TIME_INDEX],
+                        )
+                    ]
 
         self.train_transform = A.Compose(
             [
@@ -230,6 +239,7 @@ class ContrailsDatamodule(LightningDataModule):
         
         self.val_transform = self.test_transform = A.Compose(
             [
+                *n_frames_tranform,
                 A.Resize(
                     height=self.hparams.img_size_val_test,
                     width=self.hparams.img_size_val_test,
