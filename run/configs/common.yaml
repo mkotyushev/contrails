@@ -154,7 +154,6 @@ model:
     lr: null  # needed for sweeps
     postprocess: null
     pretrained_ckpt_path: null
-    num_frames: null  # only for not_labeled_mode == "video"
     add_dice_thresholded: false
     add_dataloader_idx: false
 data:
@@ -175,7 +174,8 @@ data:
     randaugment_magnitude: 9
     scale_factor: null
     crop_uniform: scale
-    concat: false
+    cat_mode: null
+    num_frames: null  # only for not_labeled_mode == "video"
     dataset_kwargs:
       band_ids: [11, 14, 15]
       mask_type: voting50
