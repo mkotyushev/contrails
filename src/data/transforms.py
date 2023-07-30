@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import torch
 from albumentations import RandomResizedCrop
-from typing import Dict, List
+from typing import Dict, List, Literal
 from torchvision.transforms import functional as F_torchvision
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
@@ -520,3 +520,100 @@ class RandomResizedCropUniformArea(RandomResizedCrop):
             "h_start": i * 1.0 / (img.shape[0] - h + 1e-10),
             "w_start": j * 1.0 / (img.shape[1] - w + 1e-10),
         }
+
+
+class SelectConcatTransform:
+    def __init__(
+        self, 
+        cat_mode: Literal['spatial', 'channel'] = 'spatial',
+        num_total_frames=None,
+        time_indices=None,
+        fill_value=0.0,
+        always_apply=True,
+        p=1.0, 
+    ) -> None:
+        assert num_total_frames is None or num_total_frames > 1, \
+            f'num_total_frames should be > 1. Got {num_total_frames}'
+        assert num_total_frames is None or num_total_frames <= N_TIMES, \
+            f'num_total_frames should be <= {N_TIMES}. Got {num_total_frames}'
+        assert time_indices is None or all([i > 0 and i <= N_TIMES for i in time_indices]), \
+            f"time_indices should be in [0, {N_TIMES}]. Got {time_indices}"
+        assert time_indices is None or len(time_indices) == len(set(time_indices)), \
+            f"time_indices should not contain duplicates. Got {time_indices}"
+        assert time_indices is None or sorted(time_indices) == time_indices, \
+            f"time_indices should be sorted. Got {time_indices}"
+        
+        assert num_total_frames is not None or time_indices is not None, \
+            "At least one of num_total_frames is not None or time_indices is not None should be True."
+        if num_total_frames is not None and time_indices is not None:
+            assert num_total_frames >= len(time_indices), \
+                f"num_total_frames should be >= len(time_indices). Got {num_total_frames} and {len(time_indices)}"
+        
+        self.time_indices = time_indices
+        self.cat_mode = cat_mode
+        self.fill_value = fill_value
+        self.always_apply = always_apply
+        self.p = p
+
+    def __call__(self, *args, force_apply: bool = False, **kwargs) -> Dict[str, np.ndarray]:
+        # Toss a coin
+        if not force_apply and not self.always_apply and random.random() > self.p:
+            return kwargs
+
+        # Reshape: (H, W, C' = C * N_TIMES) -> (H, W, C, N_TIMES)
+        image = kwargs["image"]
+        image = image.reshape(*image.shape[:-1], -1, N_TIMES)
+
+        # Fill time_indices: pre-defined + random
+        time_indices = []
+
+        if self.time_indices is not None:
+            time_indices += self.time_indices
+        
+        if self.num_total_frames is not None and len(time_indices) < self.num_total_frames:
+            num_random_frames = self.num_total_frames - len(time_indices)
+            random_time_indices += random.sample(
+                [i for i in range(N_TIMES) if i not in time_indices],
+                num_random_frames
+            )
+            random_time_indices = sorted(random_time_indices)
+            time_indices += random_time_indices
+        
+        assert len(time_indices) > 0, "len(time_indices) should be > 0"
+
+        # Select frames: (H, W, C, N_TIMES) -> (H, W, C, len(time_indices))
+        image = image[..., self.time_indices]
+
+        # Concatenate frames
+        if self.cat_mode == 'spatial':
+            # Same way as in dataset: stack frames along channel axis
+
+            # (H, W, C, len(self.time_indices)) -> (H, W, C * len(self.time_indices))
+            image = image.reshape(*image.shape[:-2], -1)
+        else:
+            # Group frames into square spatial grid
+            H, W, C, N = image.shape
+            assert H == W
+
+            # Pad len(self.time_indices) to nearest square:
+            # image: (H, W, C, T)
+            # image_new: (n_rows, H, n_cols, W, C)
+            n_rows = n_cols = int(np.ceil(np.sqrt(len(N))))
+            image_new = np.full(
+                (H, n_rows, W, n_cols, C),
+                fill_value=self.fill_value,
+                dtype=image.dtype
+            )
+
+            for i, t in enumerate(N):
+                row_index = i // n_cols
+                col_index = i % n_cols
+                image_new[row_index, :, col_index, :] = image[..., t]
+
+            # (n_rows, H, n_cols, W, C) -> (n_rows * H, n_cols * W, C)
+            image = image_new.reshape(n_rows * H, n_cols * W, C)
+
+        # Set new image: (H, W, C) or (H, W, C')
+        kwargs["image"] = image
+
+        return kwargs
