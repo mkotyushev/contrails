@@ -1,0 +1,22 @@
+trainer:
+  callbacks:
+    - class_path: src.utils.utils.ContrailsPredictionWriterPng
+      init_args:
+        output_dir: ./pseudolabels/in-fold-single/fold_3/images
+        img_size: 256
+        threshold: null  # no threshold to better average
+        postfix: "fold_3"
+data:
+  init_args:
+    disable_cache: false
+    cache_dir: cache_pseudolabel
+    to_predict: train
+    fold_index: 3
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: null
+      not_labeled_mode: single
+      pseudolabels_path: null
+      conversion_type: ash
+      quantize: true
+      stats_precomputed: false
