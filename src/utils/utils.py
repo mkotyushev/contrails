@@ -967,10 +967,13 @@ class EMACallback(Callback):
     on the end of training to each attached ModelCheckpoint 
     callback output dir as `ema-{decay}.pth` file.
     """
-    def __init__(self, decay=0.9):
+    def __init__(self, decay=0.9, save_on='validation_end'):
         super().__init__()
         self.ema = None
         self.decay = decay
+
+        assert save_on in ['validation_end', 'fit_end']
+        self.save_on = save_on
 
     def on_fit_start(self, trainer, pl_module):
         self.ema = ExponentialMovingAverage(pl_module.parameters(), decay=self.decay)
@@ -981,6 +984,19 @@ class EMACallback(Callback):
 
         self.ema.update()
     
+        if self.save_on == 'validation_end':
+            self._save(trainer)
+
+    def on_fit_end(self, trainer, pl_module):
+        if self.ema is None:
+            return
+    
+        if self.save_on == 'fit_end':
+            self._save(trainer)
+    
+    def _save(self, trainer):
+        assert self.ema is not None
+
         with self.ema.average_parameters():
             for cb in trainer.checkpoint_callbacks:
                 if (

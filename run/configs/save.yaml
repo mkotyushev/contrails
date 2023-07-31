@@ -6,6 +6,7 @@ trainer:
     - class_path: src.utils.utils.EMACallback
       init_args:
         decay: 0.9
+        save_on: validation_end
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         save_top_k: 1
