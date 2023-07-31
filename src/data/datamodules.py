@@ -7,6 +7,7 @@ import pandas as pd
 import yaml
 import git
 from copy import deepcopy
+from torch.utils.data.sampler import WeightedRandomSampler
 from pathlib import Path
 from typing import List, Literal, Optional, Tuple
 from lightning import LightningDataModule
@@ -66,6 +67,7 @@ class ContrailsDatamodule(LightningDataModule):
         test_as_aux_val: bool = False,
         crop_uniform: Literal[None, 'scale', 'area', 'discrete'] = None,
         cat_mode: Literal['spatial', 'channel', None] = None,
+        sampler_type: Literal['weighted_scale', None] = None,
     ):
         super().__init__()
 
@@ -547,6 +549,48 @@ class ContrailsDatamodule(LightningDataModule):
         sampler, shuffle, drop_last = None, True, True
         if self.hparams.to_predict == 'train':
             shuffle = False
+        else:
+            if self.hparams.sampler_type == 'weighted_scale':
+                if self.hparams.empty_mask_strategy is not None:
+                    logger.warning(
+                        f'Using weighted_scale sampler with empty_mask_strategy '
+                        f'{self.hparams.empty_mask_strategy} is not advised'
+                    )
+
+                # Reduce probability of sampling images with empty masks
+                # because if crops are smaller than image probability of
+                # sampling empty mask is getting higher
+                assert self.hparams.crop_uniform == 'discrete', \
+                    'weighted_scale sampler is valid only for crop_uniform == "discrete"'
+                assert self.hparams.scale_factor in [2.0, 4.0], \
+                    f'weighted sampling for scale_factor other than ' \
+                    f'2.0 and 4.0 is not supported'
+                assert self.train_dataset.is_mask_empty is not None, \
+                    'is_mask_empty is not defined for train_dataset'
+                
+                # We need to drop 1 - P_keep empty masks
+                # which is equivalent to sampling with following weights:
+                #   1 for non-empty masks and
+                #   P_keep for empty masks
+                P_keep = 1.0
+                if self.hparams.scale_factor == 2.0:
+                    P_keep = 0.7171
+                elif self.hparams.scale_factor == 4.0:
+                    P_keep = 0.3626
+                num_samples, weights = len(self.train_dataset), [
+                    1.0 if not is_empty else P_keep
+                    for is_empty in self.train_dataset.is_mask_empty
+                ]
+
+                sampler = WeightedRandomSampler(
+                    weights=weights, 
+                    replacement=True, 
+                    num_samples=num_samples,
+                )
+                shuffle = None
+
+                if self.trainer.current_epoch == 0:
+                    logger.info(f'num_samples: {num_samples}, P_keep: {P_keep}')
 
         return DataLoader(
             dataset=self.train_dataset, 
