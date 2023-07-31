@@ -3,6 +3,7 @@ import logging
 import math
 import albumentations as A
 import multiprocessing as mp
+import numpy as np
 import pandas as pd
 import yaml
 import git
@@ -562,9 +563,11 @@ class ContrailsDatamodule(LightningDataModule):
                 # sampling empty mask is getting higher
                 assert self.hparams.crop_uniform == 'discrete', \
                     'weighted_scale sampler is valid only for crop_uniform == "discrete"'
-                assert self.hparams.scale_factor in [2.0, 4.0], \
+                assert \
+                    np.isclose(self.hparams.scale_factor, 4.0) or \
+                    np.isclose(self.hparams.scale_factor, 16.0), \
                     f'weighted sampling for scale_factor other than ' \
-                    f'2.0 and 4.0 is not supported'
+                    f'4.0 and 16.0 is not supported, got {self.hparams.scale_factor}'
                 assert self.train_dataset.is_mask_empty is not None, \
                     'is_mask_empty is not defined for train_dataset'
                 
@@ -574,9 +577,9 @@ class ContrailsDatamodule(LightningDataModule):
                 #   P_keep for empty masks
                 # See src/notebooks/eda.ipynb for details
                 P_keep = 1.0
-                if self.hparams.scale_factor == 2.0:
+                if self.hparams.scale_factor == 4.0:
                     P_keep = 0.941710746431351
-                elif self.hparams.scale_factor == 4.0:
+                elif self.hparams.scale_factor == 16.0:
                     P_keep = 0.2981262293239914
                 num_samples, weights = len(self.train_dataset), [
                     1.0 if not is_empty else P_keep
