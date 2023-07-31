@@ -1,0 +1,10 @@
+trainer:
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+    - class_path: src.utils.utils.EMACallback
+      init_args:
+        decay: 0.9
+        save_on: fit_end
+    # TODO: add saving only last epoch

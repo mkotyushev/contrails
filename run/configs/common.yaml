@@ -15,23 +15,6 @@ trainer:
     #     patience: 10
     #     critical_value: 0.3
     #     critical_epoch: 7
-    - class_path: src.utils.utils.ModelCheckpointNoSave
-    # - class_path: lightning.pytorch.callbacks.ModelCheckpoint
-      init_args:
-        save_top_k: 1
-        monitor: v_dice
-        every_n_epochs: 1
-        mode: max
-        save_on_train_epoch_end: false
-        save_last: true
-    # - class_path: src.utils.utils.ModelCheckpointNoSave
-    #   init_args:
-    #     save_top_k: 1
-    #     monitor: vl
-    #     every_n_epochs: 1
-    #     mode: min
-    #     save_on_train_epoch_end: false
-    #     save_last: true
 
   # limit_train_batches: 10
   # limit_val_batches: 10
