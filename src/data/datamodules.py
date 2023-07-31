@@ -562,8 +562,11 @@ class ContrailsDatamodule(LightningDataModule):
                 # because if crops are smaller than image probability of
                 # sampling empty mask is getting higher
                 scale_factor_to_P_keep = {
-                    4.0: 0.941710746431351,
-                    16.0: 0.2981262293239914,
+                    1.0: 0.9992323452535102,   # 256
+                    4.0: 0.941710746431351,    # 512
+                    6.25: 0.7372625494748762,  # 640
+                    9.0: 0.5686420912133464,   # 768
+                    16.0: 0.2981262293239914,  # 1024
                 }
                 assert self.hparams.crop_uniform == 'discrete', \
                     'weighted_scale sampler is valid only for crop_uniform == "discrete"'
