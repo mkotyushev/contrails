@@ -173,7 +173,7 @@ data:
     randaugment_num_ops: 3
     randaugment_magnitude: 9
     scale_factor: null
-    crop_uniform: scale
+    crop_uniform: null
     cat_mode: null
     num_frames: null  # only for not_labeled_mode == "video"
     dataset_kwargs:

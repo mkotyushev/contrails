@@ -64,7 +64,7 @@ class ContrailsDatamodule(LightningDataModule):
         remove_pseudolabels_from_val_test: bool = True,
         num_frames: Optional[int] = None,
         test_as_aux_val: bool = False,
-        crop_uniform: Literal['scale', 'area', 'discrete'] = 'scale',
+        crop_uniform: Literal[None, 'scale', 'area', 'discrete'] = None,
         cat_mode: Literal['spatial', 'channel', None] = None,
     ):
         super().__init__()
@@ -82,10 +82,14 @@ class ContrailsDatamodule(LightningDataModule):
             assert dataset_kwargs['not_labeled_mode'] == 'video', \
                 'num_frames is valid only for not_labeled_mode == "video"'
 
+        if crop_uniform is not None:
+            assert scale_factor is not None, \
+                'scale_factor must be not None when crop_uniform is not None'
+
         if crop_uniform in ['scale', 'area']:
             assert len(scale_factor) == 2, \
                 f'len(scale_factor) must be 2 for {crop_uniform}, got {len(scale_factor)}'
-            assert scale_factor is None or (scale_factor[0] <= scale_factor[1]), \
+            assert (scale_factor[0] <= scale_factor[1]), \
                 f'scale_factor[0] must be <= scale_factor[1] for {crop_uniform}, got {scale_factor}'
         
         if batch_size_val_test is None:
