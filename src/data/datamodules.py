@@ -59,7 +59,7 @@ class ContrailsDatamodule(LightningDataModule):
         cache_dir: Optional[Path] = None,
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
         split_info_path: Optional[Path] = None,
-        scale_factor: Optional[Tuple[float, ...]] = None,
+        scale_factor: Optional[float | Tuple[float, ...]] = None,
         to_predict: Literal['test', 'val', 'train'] = 'test',
         remove_pseudolabels_from_val_test: bool = True,
         num_frames: Optional[int] = None,
@@ -82,10 +82,11 @@ class ContrailsDatamodule(LightningDataModule):
             assert dataset_kwargs['not_labeled_mode'] == 'video', \
                 'num_frames is valid only for not_labeled_mode == "video"'
 
+        if isinstance(scale_factor, float):
+            scale_factor = (scale_factor,)
         if crop_uniform is not None:
             assert scale_factor is not None, \
                 'scale_factor must be not None when crop_uniform is not None'
-
         if crop_uniform in ['scale', 'area']:
             assert len(scale_factor) == 2, \
                 f'len(scale_factor) must be 2 for {crop_uniform}, got {len(scale_factor)}'
