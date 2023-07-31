@@ -20,7 +20,7 @@ from src.data.transforms import (
     CopyPastePositive,
     CutMix,
     MixUp,
-    RandomResizedCropUniformArea,
+    RandomResizedCropByDistribution,
     RandomSubsequence,
     SelectConcatTransform,
 )
@@ -59,12 +59,12 @@ class ContrailsDatamodule(LightningDataModule):
         cache_dir: Optional[Path] = None,
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
         split_info_path: Optional[Path] = None,
-        scale_factor: Optional[Tuple[float, float]] = None,
+        scale_factor: Optional[Tuple[float, ...]] = None,
         to_predict: Literal['test', 'val', 'train'] = 'test',
         remove_pseudolabels_from_val_test: bool = True,
         num_frames: Optional[int] = None,
         test_as_aux_val: bool = False,
-        crop_uniform: Literal['scale', 'area'] = 'scale',
+        crop_uniform: Literal['scale', 'area', 'discrete'] = 'scale',
         cat_mode: Literal['spatial', 'channel', None] = None,
     ):
         super().__init__()
@@ -82,10 +82,13 @@ class ContrailsDatamodule(LightningDataModule):
             assert dataset_kwargs['not_labeled_mode'] == 'video', \
                 'num_frames is valid only for not_labeled_mode == "video"'
 
-        assert scale_factor is None or (scale_factor[0] >= 1 and scale_factor[1] >= 1), \
-            f'both scale_factor values must be >= 1, got {scale_factor}'
-        assert scale_factor is None or (scale_factor[0] <= scale_factor[1]), \
-            f'scale_factor[0] must be <= scale_factor[1], got {scale_factor}'
+        assert scale_factor is None or len(scale_factor) >= 2, \
+            f'len(scale_factor) must be >= 2, got {len(scale_factor)}'
+        if crop_uniform in ['scale', 'area']:
+            assert len(scale_factor) == 2, \
+                f'len(scale_factor) must be 2 for {crop_uniform}, got {len(scale_factor)}'
+            assert scale_factor is None or (scale_factor[0] <= scale_factor[1]), \
+                f'scale_factor[0] must be <= scale_factor[1] for {crop_uniform}, got {scale_factor}'
         
         if batch_size_val_test is None:
             batch_size_val_test = batch_size
@@ -138,31 +141,17 @@ class ContrailsDatamodule(LightningDataModule):
                 always_apply=True,
             )
         else:
-            if self.hparams.crop_uniform == 'scale':
-                # Default albumentations behavior
-                train_resize_transform = A.RandomResizedCrop(
-                    height=self.hparams.img_size,
-                    width=self.hparams.img_size,
-                    # Scale factor is applied here in the opposite direction
-                    # because it is multiplicative
-                    # and RandomResizedCrop expects reversed scale factor
-                    scale=(1 / self.hparams.scale_factor[1], 1 / self.hparams.scale_factor[0]),
-                    ratio=(1.0, 1.0),
-                    always_apply=True,
-                )
-            elif self.hparams.crop_uniform == 'area':
-                # Uniformly sample crop area to show the model
-                # all the possible resolutions equally
-                train_resize_transform = RandomResizedCropUniformArea(
-                    height=self.hparams.img_size,
-                    width=self.hparams.img_size,
-                    # Scale factor is applied here in the opposite direction
-                    # because it is multiplicative
-                    # and RandomResizedCrop expects reversed scale factor
-                    scale=(1 / self.hparams.scale_factor[1], 1 / self.hparams.scale_factor[0]),
-                    ratio=(1.0, 1.0),
-                    always_apply=True,
-                )
+            train_resize_transform = RandomResizedCropByDistribution(
+                mode=self.hparams.crop_uniform,
+                height=self.hparams.img_size,
+                width=self.hparams.img_size,
+                # Scale factor is applied here in the opposite direction
+                # because it is multiplicative
+                # and RandomResizedCrop expects reversed scale factor
+                scale=(1 / self.hparams.scale_factor[1], 1 / self.hparams.scale_factor[0]),
+                ratio=(1.0, 1.0),
+                always_apply=True,
+            )
 
         aug_transform = []
         if self.hparams.randaugment_num_ops > 0:

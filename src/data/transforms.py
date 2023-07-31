@@ -475,16 +475,33 @@ class RandomSubsequence:
         return kwargs
 
 
-class RandomResizedCropUniformArea(RandomResizedCrop):
-    """Same as RandomResizedCrop, but with uniformly distributed area 
-    of the crop instead of uniformly distributed scale.
+class RandomResizedCropByDistribution(RandomResizedCrop):
+    """RandomResizedCrop but with crop size sampling from distribution.
     """
+    def __init__(self, mode='scale', *args, **kwargs):
+        """
+        mode: 
+            'scale': sample scale from uniform distribution (p ~ scale)
+            'area': sample area from uniform distribution (p ~ area ~ scale ** 2)
+            'discrete': sample scale from discrete uniform distribution (p = 1 / len(scale))
+        """
+        super().__init__(*args, **kwargs)
+        assert mode in ['scale', 'area', 'discrete'], \
+            f"mode should be 'scale', 'area' or 'discrete'. Got {mode}"
+        self.mode = mode
+
     def get_params_dependent_on_targets(self, params):
         img = params["image"]
         area = img.shape[0] * img.shape[1]
 
         for _attempt in range(10):
-            target_area = random.uniform(self.scale[0] * area, self.scale[1] * area)
+            if self.mode == 'scale':
+                target_area = random.uniform(*self.scale) * area
+            elif self.mode == 'area':
+                target_area = random.uniform(self.scale[0] * area, self.scale[1] * area)
+            elif self.mode == 'discrete':
+                target_area = random.choice(self.scale) * area
+            
             log_ratio = (math.log(self.ratio[0]), math.log(self.ratio[1]))
             aspect_ratio = math.exp(random.uniform(*log_ratio))
 
