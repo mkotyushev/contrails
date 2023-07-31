@@ -26,7 +26,10 @@ from src.data.transforms import (
     RandomSubsequence,
     SelectConcatTransform,
 )
-from src.utils.utils import contrails_collate_fn
+from src.utils.utils import (
+    contrails_collate_fn, 
+    interpolate_scale_factor_to_P_keep,
+)
 from src.utils.randaugment import RandAugment
 
 
@@ -570,12 +573,27 @@ class ContrailsDatamodule(LightningDataModule):
                 }
                 assert self.hparams.crop_uniform == 'discrete', \
                     'weighted_scale sampler is valid only for crop_uniform == "discrete"'
-                assert all(s in scale_factor_to_P_keep for s in self.hparams.scale_factor), \
-                    f'weighted sampling for scale_factor other than ' \
-                    f'4.0 and 16.0 is not supported, got {self.hparams.scale_factor}'
                 assert self.train_dataset.is_mask_empty is not None, \
                     'is_mask_empty is not defined for train_dataset'
-                
+
+                for s in self.hparams.scale_factor:
+                    if s > 16.0:
+                        # Use 0.2981262293239914 for scale_factor > 16.0 to not 
+                        # "drop" too many images
+                        logger.warning(
+                            f'scale_factor {s} > 16.0 is not in scale_factor_to_P_keep '
+                            f'{scale_factor_to_P_keep}, '
+                            f'using scale_factor_to_P_keep[16.0] = {scale_factor_to_P_keep[16.0]} instead'
+                        )
+                        scale_factor_to_P_keep[s] = scale_factor_to_P_keep[16.0]
+                    elif s < 1.0:
+                        raise ValueError(
+                            f'scale_factor {s} < 1.0 is not supported'
+                        )
+                    else:
+                        # Interpolate
+                        scale_factor_to_P_keep[s] = interpolate_scale_factor_to_P_keep(s)
+    
                 # We need to drop 1 - P_keep empty masks
                 # which is equivalent to sampling with following weights:
                 #   1 for non-empty masks and

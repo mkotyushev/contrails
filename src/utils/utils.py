@@ -1151,3 +1151,10 @@ class ContrailsPredictionWriterPng(BasePredictionWriter):
             time_idx = batch['time_idx'][i] if 'time_idx' in batch else LABELED_TIME_INDEX
             out_path = self.output_dir / (batch['path'][i].split('/')[-1] + f'_{time_idx}_{self.postfix}.png')
             cv2.imwrite(str(out_path), prediction[i])
+
+
+def interpolate_scale_factor_to_P_keep(scale_factor):
+    assert scale_factor >= 1 and scale_factor <= 20.25, \
+        f'scale_factor must be in [1, 20.25], got {scale_factor}'
+    a, b = (-0.04943797671403398, 1.0674201235161613)
+    return np.clip(a * scale_factor + b, 0.0, 1.0)
