@@ -82,8 +82,6 @@ class ContrailsDatamodule(LightningDataModule):
             assert dataset_kwargs['not_labeled_mode'] == 'video', \
                 'num_frames is valid only for not_labeled_mode == "video"'
 
-        assert scale_factor is None or len(scale_factor) >= 2, \
-            f'len(scale_factor) must be >= 2, got {len(scale_factor)}'
         if crop_uniform in ['scale', 'area']:
             assert len(scale_factor) == 2, \
                 f'len(scale_factor) must be 2 for {crop_uniform}, got {len(scale_factor)}'
@@ -148,7 +146,7 @@ class ContrailsDatamodule(LightningDataModule):
                 # Scale factor is applied here in the opposite direction
                 # because it is multiplicative
                 # and RandomResizedCrop expects reversed scale factor
-                scale=(1 / self.hparams.scale_factor[1], 1 / self.hparams.scale_factor[0]),
+                scale=list(map(lambda x: 1 / x, self.hparams.scale_factor[::-1])),
                 ratio=(1.0, 1.0),
                 always_apply=True,
             )
