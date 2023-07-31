@@ -86,7 +86,7 @@ class ContrailsDatamodule(LightningDataModule):
                 'num_frames is valid only for not_labeled_mode == "video"'
 
         if isinstance(scale_factor, float):
-            scale_factor = (scale_factor,)
+            scale_factor = tuple([scale_factor])
         if crop_uniform is not None:
             assert scale_factor is not None, \
                 'scale_factor must be not None when crop_uniform is not None'
@@ -561,11 +561,13 @@ class ContrailsDatamodule(LightningDataModule):
                 # Reduce probability of sampling images with empty masks
                 # because if crops are smaller than image probability of
                 # sampling empty mask is getting higher
+                scale_factor_to_P_keep = {
+                    4.0: 0.941710746431351,
+                    16.0: 0.2981262293239914,
+                }
                 assert self.hparams.crop_uniform == 'discrete', \
                     'weighted_scale sampler is valid only for crop_uniform == "discrete"'
-                assert \
-                    np.isclose(self.hparams.scale_factor, 4.0) or \
-                    np.isclose(self.hparams.scale_factor, 16.0), \
+                assert all(s in scale_factor_to_P_keep for s in self.hparams.scale_factor), \
                     f'weighted sampling for scale_factor other than ' \
                     f'4.0 and 16.0 is not supported, got {self.hparams.scale_factor}'
                 assert self.train_dataset.is_mask_empty is not None, \
@@ -576,11 +578,12 @@ class ContrailsDatamodule(LightningDataModule):
                 #   1 for non-empty masks and
                 #   P_keep for empty masks
                 # See src/notebooks/eda.ipynb for details
-                P_keep = 1.0
-                if np.isclose(self.hparams.scale_factor, 4.0):
-                    P_keep = 0.941710746431351
-                elif np.isclose(self.hparams.scale_factor, 16.0):
-                    P_keep = 0.2981262293239914
+
+                # TODO: double check that P_keep for multiple scale factors
+                # is the average of P_keep for each scale factor
+                P_keep = \
+                    sum(scale_factor_to_P_keep[s] for s in self.hparams.scale_factor) / \
+                    len(self.hparams.scale_factor)
                 num_samples, weights = len(self.train_dataset), [
                     1.0 if not is_empty else P_keep
                     for is_empty in self.train_dataset.is_mask_empty
