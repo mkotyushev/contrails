@@ -22,11 +22,11 @@ trainer:
         mode: max
         save_on_train_epoch_end: false
         save_last: true
-    - class_path: src.utils.utils.ModelCheckpointNoSave
-      init_args:
-        save_top_k: 1
-        monitor: vl
-        every_n_epochs: 1
-        mode: min
-        save_on_train_epoch_end: false
-        save_last: true
+    # - class_path: src.utils.utils.ModelCheckpointNoSave
+    #   init_args:
+    #     save_top_k: 1
+    #     monitor: vl
+    #     every_n_epochs: 1
+    #     mode: min
+    #     save_on_train_epoch_end: false
+    #     save_last: true
