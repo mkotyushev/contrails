@@ -1,0 +1,12 @@
+data:
+  init_args:
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: voting50
+      not_labeled_mode: single
+      pseudolabels_path: ../data/pseudolabels/in-fold-single/fold_0/npy/
+      conversion_type: ash
+      quantize: true
+      stats_precomputed: false
+    cache_dir: cache_pseudolabels
+    remove_pseudolabels_from_val_test: true
