@@ -96,10 +96,11 @@ class ContrailsDatamodule(LightningDataModule):
         if batch_size_val_test is None:
             batch_size_val_test = batch_size
         if scale_factor is not None:
-            if batch_size_val_test >= batch_size:
+            largest_scale = max(scale_factor)
+            if batch_size_val_test >= batch_size and largest_scale > 1:
                 logger.warning(
                     f'batch_size_val_test >= batch_size ({batch_size_val_test} >= {batch_size}) with '
-                    f'scale_factor[1] = {scale_factor[1]} > 1 that will be used in val and test, '
+                    f'largest_scale = {largest_scale} > 1 that will be used in val and test, '
                     f'probably batch_size_val_test should be < batch_size '
                     f'to avoid OOM during val and test'
                 )
