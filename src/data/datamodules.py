@@ -577,9 +577,9 @@ class ContrailsDatamodule(LightningDataModule):
                 #   P_keep for empty masks
                 # See src/notebooks/eda.ipynb for details
                 P_keep = 1.0
-                if self.hparams.scale_factor == 4.0:
+                if np.isclose(self.hparams.scale_factor, 4.0):
                     P_keep = 0.941710746431351
-                elif self.hparams.scale_factor == 16.0:
+                elif np.isclose(self.hparams.scale_factor, 16.0):
                     P_keep = 0.2981262293239914
                 num_samples, weights = len(self.train_dataset), [
                     1.0 if not is_empty else P_keep
