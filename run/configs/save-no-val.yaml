@@ -8,3 +8,9 @@ trainer:
         decay: 0.9
         save_on: fit_end
     # TODO: add saving only last epoch
+    - class_path: src.utils.utils.ModelCheckpointNoSave
+      init_args:
+        save_top_k: 1
+        every_n_epochs: 1
+        save_on_train_epoch_end: true
+        save_last: true
