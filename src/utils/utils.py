@@ -984,14 +984,14 @@ class EMACallback(Callback):
 
         self.ema.update()
 
-        if self.save_on == 'validation_end':
+        if self.save_on == 'train_epoch_end':
             self._save(trainer)
     
     def on_validation_end(self, trainer, pl_module):
         if self.ema is None:
             return
 
-        if self.save_on == 'train_epoch_end':
+        if self.save_on == 'validation_end':
             self._save(trainer)
 
     def on_fit_end(self, trainer, pl_module):
