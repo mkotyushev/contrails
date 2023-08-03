@@ -310,6 +310,10 @@ class ContrailsDatamodule(LightningDataModule):
                 d for d in train_record_dirs 
                 if str(d) not in pathes_to_drop
             ]
+            train_is_mask_empty = [
+                is_empty for d, is_empty in zip(train_record_dirs, train_is_mask_empty)
+                if str(d) not in pathes_to_drop
+            ]
             logger.info(
                 f'len(train_record_dirs) after dropping records: {len(train_record_dirs)}'
             )
