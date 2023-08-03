@@ -66,7 +66,7 @@ class BaseModule(LightningModule):
         lr_scheduler_init: Optional[Dict[str, Any]] = None,
         pl_lrs_cfg: Optional[Dict[str, Any]] = None,
         finetuning: Optional[Dict[str, Any]] = None,
-        log_norm_verbose: int = 0,
+        verbose: int = 0,
         lr_layer_decay: Union[float, Dict[str, float]] = 1.0,
         n_bootstrap: int = 1000,
         fill_metric_nan: Optional[float] = None,
@@ -386,20 +386,20 @@ class BaseModule(LightningModule):
 
     def on_before_optimizer_step(self, optimizer):
         """Log gradient norms."""
-        if self.hparams.log_norm_verbose == 0:
+        if self.hparams.verbose == 0:
             return
         
         # Compute the 2-norm for each layer
         # If using mixed precision, the gradients are already unscaled here
         norms = grad_norm(self, norm_type=2)
-        if self.hparams.log_norm_verbose > 1:
+        if self.hparams.verbose > 1:
             self.log_dict(norms)
         else:
             if 'grad_2.0_norm_total' in norms:
                 self.log('grad_2.0_norm_total', norms['grad_2.0_norm_total'])
 
         norms = state_norm(self, norm_type=2)
-        if self.hparams.log_norm_verbose > 1:
+        if self.hparams.verbose > 1:
             self.log_dict(norms)
         else:
             if 'state_2.0_norm_total' in norms:
@@ -1137,7 +1137,7 @@ class SegmentationModule(BaseModule):
         lr_scheduler_init: Optional[Dict[str, Any]] = None,
         pl_lrs_cfg: Optional[Dict[str, Any]] = None,
         finetuning: Optional[Dict[str, Any]] = None,
-        log_norm_verbose: int = 0,
+        verbose: int = 0,
         grad_checkpointing: bool = False,
         lr_layer_decay: Union[float, Dict[str, float]] = 1.0,
         n_bootstrap: int = 1000,
@@ -1159,7 +1159,7 @@ class SegmentationModule(BaseModule):
             lr_scheduler_init=lr_scheduler_init,
             pl_lrs_cfg=pl_lrs_cfg,
             finetuning=finetuning,
-            log_norm_verbose=log_norm_verbose,
+            verbose=verbose,
             lr_layer_decay=lr_layer_decay,
             n_bootstrap=n_bootstrap,
             fill_metric_nan=fill_metric_nan,
@@ -1491,7 +1491,15 @@ class SegmentationModule(BaseModule):
     def predict_step(self, batch: Tensor, batch_idx: int, dataloader_idx: Optional[int] = None, **kwargs) -> Tensor:
         # Prevent storing predictions in _PredictionLoop._predict_step
         self.trainer.predict_loop.return_predictions = False
-        _, _, preds = self.compute_loss_preds(batch, only_labeled=True, **kwargs)
+        total_loss, losses, preds = self.compute_loss_preds(batch, only_labeled=False, **kwargs)
+        if self.hparams.verbose > 1:
+            for loss_name, loss in losses.items():
+                logger.debug(
+                    f'pl_{loss_name}, {batch["path"]}: {loss:.4f}', 
+                )
+            logger.debug(
+                f'total pl, {batch["path"]}: {total_loss:.4f}', 
+            )
         return preds
 
     def on_train_epoch_end(self) -> None:
