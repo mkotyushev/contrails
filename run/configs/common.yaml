@@ -146,6 +146,7 @@ data:
       - ../data/train
       - ../data/validation
     data_dirs_test: null
+    drop_records_csv_path: null
     num_folds: 5
     fold_index: 0
     fold_index_outer: null
