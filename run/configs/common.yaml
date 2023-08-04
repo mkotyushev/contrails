@@ -127,7 +127,7 @@ model:
       frequency: 1
     finetuning: null
     lr_layer_decay: 1.0
-    log_norm_verbose: 0
+    verbose: 0
     n_bootstrap: 0
     fill_metric_nan: null
     prog_bar_names: 
@@ -146,6 +146,7 @@ data:
       - ../data/train
       - ../data/validation
     data_dirs_test: null
+    drop_records_csv_path: null
     num_folds: 5
     fold_index: 0
     fold_index_outer: null

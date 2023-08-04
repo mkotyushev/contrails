@@ -72,6 +72,7 @@ class ContrailsDatamodule(LightningDataModule):
         crop_uniform: Literal[None, 'scale', 'area', 'discrete'] = None,
         cat_mode: Literal['spatial', 'channel', None] = None,
         sampler_type: Literal['weighted_scale', None] = None,
+        drop_records_csv_path: Optional[Path] = None,
     ):
         super().__init__()
 
@@ -295,6 +296,26 @@ class ContrailsDatamodule(LightningDataModule):
             self.make_cache(
                 record_dirs=train_record_dirs + val_record_dirs + test_record_dirs,
                 not_labeled_mode=not_labeled_mode
+            )
+
+        # Drop train records from drop_records_csv_path if given
+        if self.hparams.drop_records_csv_path is not None:
+            df = pd.read_csv(self.hparams.drop_records_csv_path)
+            pathes_to_drop = set(df['path'].to_list())
+
+            logger.info(
+                f'len(train_record_dirs) before dropping records: {len(train_record_dirs)}'
+            )
+            train_record_dirs = [
+                d for d in train_record_dirs 
+                if str(d) not in pathes_to_drop
+            ]
+            train_is_mask_empty = [
+                is_empty for d, is_empty in zip(train_record_dirs, train_is_mask_empty)
+                if str(d) not in pathes_to_drop
+            ]
+            logger.info(
+                f'len(train_record_dirs) after dropping records: {len(train_record_dirs)}'
             )
 
         # Train
