@@ -134,6 +134,7 @@ data:
     img_size_val_test: null  # same as img_size
     random_state: 0
     sampler_type: null
+    not_labeled_weight_divider: null
     randaugment_num_ops: 3
     randaugment_magnitude: 9
     scale_factor: null

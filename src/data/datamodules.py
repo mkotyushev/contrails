@@ -71,8 +71,14 @@ class ContrailsDatamodule(LightningDataModule):
         test_as_aux_val: bool = False,
         crop_uniform: Literal[None, 'scale', 'area', 'discrete'] = None,
         cat_mode: Literal['spatial', 'channel', None] = None,
-        sampler_type: Literal['weighted_scale', None] = None,
+        sampler_type: Literal[
+            'weighted_scale', 
+            'weighted_not_labeled', 
+            'weighted_not_labeled_special',
+            None,
+        ] = None,
         drop_records_csv_path: Optional[Path] = None,
+        not_labeled_weight_divider: Optional[float] = None,
     ):
         super().__init__()
 
@@ -111,6 +117,18 @@ class ContrailsDatamodule(LightningDataModule):
                     f'probably batch_size_val_test should be < batch_size '
                     f'to avoid OOM during val and test'
                 )
+
+        if not_labeled_weight_divider is not None:
+            assert dataset_kwargs['not_labeled_mode'] == 'single', \
+                'not_labeled_weight_divider is valid only ' \
+                'for not_labeled_mode == "single"'
+            assert sampler_type in [
+                'weighted_scale', 
+                'weighted_not_labeled', 
+                'weighted_not_labeled_special'
+            ], \
+                'not_labeled_weight_divider is valid only ' \
+                'for certain sampler_type (see src/data/datamodules.py)'
 
         if img_size_val_test is None:
             img_size_val_test = img_size
@@ -575,13 +593,15 @@ class ContrailsDatamodule(LightningDataModule):
         if self.hparams.to_predict == 'train':
             shuffle = False
         else:
-            if self.hparams.sampler_type == 'weighted_scale':
+            if self.hparams.sampler_type is not None:
                 if self.hparams.empty_mask_strategy is not None:
                     logger.warning(
-                        f'Using weighted_scale sampler with empty_mask_strategy '
+                        f'Using weighted sampler {self.hparams.sampler_type} '
+                        f'with empty_mask_strategy '
                         f'{self.hparams.empty_mask_strategy} is not advised'
                     )
 
+            if self.hparams.sampler_type == 'weighted_scale':
                 # Reduce probability of sampling images with empty masks
                 # because if crops are smaller than image probability of
                 # sampling empty mask is getting higher
@@ -640,7 +660,10 @@ class ContrailsDatamodule(LightningDataModule):
                     for is_empty in self.train_dataset.is_mask_empty:
                         weight = 1.0 if not is_empty else P_keep
                         for _ in range(N_TIMES):
-                            weights.append(weight)
+                            w = weight
+                            if time_index != LABELED_TIME_INDEX:
+                                w /= self.hparams.not_labeled_weight_divider
+                            weights.append(w)
                 
                 assert len(weights) == len(self.train_dataset)
 
@@ -653,6 +676,51 @@ class ContrailsDatamodule(LightningDataModule):
 
                 if self.trainer.current_epoch == 0:
                     logger.info(f'num_samples: {num_samples}, P_keep: {P_keep}')
+            elif self.hparams.sampler_type == 'weighted_not_labeled':
+                # Weight samples with original labels with 1.0
+                # and samples with pseudolabels with 1.0 / not_labeled_weight_divider
+                # to reduce probability of sampling pseudolabels
+
+                num_samples = len(self.train_dataset)  # already multiplied by N_TIMES
+                weights = []
+                for _ in self.train_dataset.record_dirs:
+                    for time_index in range(N_TIMES):
+                        weight = 1.0
+                        if time_index != LABELED_TIME_INDEX:
+                            weight /= self.hparams.not_labeled_weight_divider
+                        weights.append(weight)
+
+                assert len(weights) == len(self.train_dataset)
+
+                sampler = WeightedRandomSampler(
+                    weights=weights, 
+                    replacement=True, 
+                    num_samples=num_samples,
+                )
+                shuffle = None
+            elif self.hparams.sampler_type == 'weighted_not_labeled_special':
+                # Same as weighted_not_labeled but reduce number of samples
+                # to 2 * number of samples with original labels
+                # i. e. 2 * len(self.train_dataset) / N_TIMES
+                # so in single epoch there will be half of samples with original labels
+                # and half of samples with pseudolabels
+                num_samples = int(2 * len(self.train_dataset) / N_TIMES)
+                weights = []
+                for _ in self.train_dataset.record_dirs:
+                    for time_index in range(N_TIMES):
+                        weight = 1.0
+                        if time_index != LABELED_TIME_INDEX:
+                            weight /= self.hparams.not_labeled_weight_divider
+                        weights.append(weight)
+
+                assert len(weights) == len(self.train_dataset)
+
+                sampler = WeightedRandomSampler(
+                    weights=weights, 
+                    replacement=True, 
+                    num_samples=num_samples,
+                )
+                shuffle = None
 
         return DataLoader(
             dataset=self.train_dataset, 
