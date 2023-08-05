@@ -44,8 +44,8 @@ def main(args):
 
     # Score full dataset
     metric = BinaryF1Score(threshold=args.threshold)
-    target = np.concatenate([targets[i] for i in range(len(targets))])
-    pred = np.concatenate([preds[i] for i in range(len(preds))])
+    target = np.concatenate(targets)
+    pred = np.concatenate(preds)
     metric.update(torch.tensor(pred).flatten(), torch.tensor(target).flatten())
     print(f'Full dataset score: {metric.compute().item()}')
     metric.reset()
