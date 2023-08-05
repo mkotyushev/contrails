@@ -6,7 +6,7 @@ contrails/
 pretrained/
 pipe/
 cache*/
-preds/
+preds*/
 pseudolabels/
 weights/
 artifacts/
