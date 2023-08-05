@@ -59,6 +59,13 @@ class MyLightningCLI(LightningCLI):
             "data.init_args.test_as_aux_val", 
             "model.init_args.add_dataloader_idx",
         )
+        
+    def before_instantiate_classes(self) -> None:
+        # Set LR: nested dict value setting from CLI is not supported
+        # so separate arg is used
+        if self.config['fit']['model']['init_args']['lr'] is not None:
+            self.config['fit']['model']['init_args']['optimizer_init']['init_args']['lr'] = \
+                self.config['fit']['model']['init_args']['lr']
 
 
 class MyLightningCLISweep(MyLightningCLI):
@@ -72,6 +79,8 @@ class MyLightningCLISweep(MyLightningCLI):
     not possible. This can be solved by binding `compile` to `backbone_name`.
     """
     def before_instantiate_classes(self) -> None:
+        super().before_instantiate_classes()
+
         """Implement to run some code before instantiating the classes."""
         device_to_batch_size_divider = {
             'NVIDIA GeForce RTX 3090': 1,
@@ -189,11 +198,6 @@ class MyLightningCLISweep(MyLightningCLI):
                     'Setting `compile=False`.'
                 )
             self.config['fit']['model']['init_args']['compile'] = False
-
-        # Set LR (needed for sweeps)
-        if self.config['fit']['model']['init_args']['lr'] is not None:
-            self.config['fit']['model']['init_args']['optimizer_init']['init_args']['lr'] = \
-                self.config['fit']['model']['init_args']['lr']
 
         # Overrride batch params (needed for different machines)
         device_name = torch.cuda.get_device_name()
