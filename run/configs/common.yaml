@@ -135,6 +135,7 @@ data:
     random_state: 0
     sampler_type: null
     not_labeled_weight_divider: null
+    reduce_num_pl_samples: false
     randaugment_num_ops: 3
     randaugment_magnitude: 9
     scale_factor: null

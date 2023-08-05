@@ -74,11 +74,11 @@ class ContrailsDatamodule(LightningDataModule):
         sampler_type: Literal[
             'weighted_scale', 
             'weighted_not_labeled', 
-            'weighted_not_labeled_special',
             None,
         ] = None,
         drop_records_csv_path: Optional[Path] = None,
         not_labeled_weight_divider: Optional[float] = None,
+        reduce_num_pl_samples: bool = False,
     ):
         super().__init__()
 
@@ -655,7 +655,14 @@ class ContrailsDatamodule(LightningDataModule):
                     ]
                 else:
                     # single: single record -> N_TIMES dataset entries
-                    num_samples = len(self.train_dataset)  # already multiplied by N_TIMES
+                    if not self.hparams.reduce_num_pl_samples:
+                        # Just as is
+                        num_samples = len(self.train_dataset)  # already multiplied by N_TIMES
+                    else:
+                        # Reduce number of pseudolabels samples
+                        # to have the same number of samples with pseudolabels
+                        # as with original labels
+                        num_samples = int(2 * len(self.train_dataset) / N_TIMES)
                     weights = []
                     for is_empty in self.train_dataset.is_mask_empty:
                         weight = 1.0 if not is_empty else P_keep
@@ -681,30 +688,14 @@ class ContrailsDatamodule(LightningDataModule):
                 # and samples with pseudolabels with 1.0 / not_labeled_weight_divider
                 # to reduce probability of sampling pseudolabels
 
-                num_samples = len(self.train_dataset)  # already multiplied by N_TIMES
-                weights = []
-                for _ in self.train_dataset.record_dirs:
-                    for time_index in range(N_TIMES):
-                        weight = 1.0
-                        if time_index != LABELED_TIME_INDEX:
-                            weight /= self.hparams.not_labeled_weight_divider
-                        weights.append(weight)
-
-                assert len(weights) == len(self.train_dataset)
-
-                sampler = WeightedRandomSampler(
-                    weights=weights, 
-                    replacement=True, 
-                    num_samples=num_samples,
-                )
-                shuffle = None
-            elif self.hparams.sampler_type == 'weighted_not_labeled_special':
-                # Same as weighted_not_labeled but reduce number of samples
-                # to 2 * number of samples with original labels
-                # i. e. 2 * len(self.train_dataset) / N_TIMES
-                # so in single epoch there will be half of samples with original labels
-                # and half of samples with pseudolabels
-                num_samples = int(2 * len(self.train_dataset) / N_TIMES)
+                if not self.hparams.reduce_num_pl_samples:
+                    # Just as is
+                    num_samples = len(self.train_dataset)  # already multiplied by N_TIMES
+                else:
+                    # Reduce number of pseudolabels samples
+                    # to have the same number of samples with pseudolabels
+                    # as with original labels
+                    num_samples = int(2 * len(self.train_dataset) / N_TIMES)
                 weights = []
                 for _ in self.train_dataset.record_dirs:
                     for time_index in range(N_TIMES):
