@@ -11,7 +11,10 @@ from src.data.datasets import LABELED_TIME_INDEX
 
 
 def main(args):
-    paths = sorted([list(d.glob('*.png')) for d in args.input_dirs])
+    paths = []
+    for d in args.input_dirs:
+        paths += list(d.glob('*.png'))
+    paths = sorted(paths)
     print(f'Total records: {len(paths)}')
 
     # Read data
