@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from albumentations.pytorch import ToTensorV2
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
-from src.data.datasets import LABELED_TIME_INDEX, MEAN, STD, ContrailsDataset, BANDS
+from src.data.datasets import LABELED_TIME_INDEX, MEAN, N_TIMES, STD, ContrailsDataset, BANDS
 from src.data.transforms import (
     CopyPastePositive,
     CutMix,
@@ -626,10 +626,23 @@ class ContrailsDatamodule(LightningDataModule):
                 P_keep = \
                     sum(scale_factor_to_P_keep[s] for s in self.hparams.scale_factor) / \
                     len(self.hparams.scale_factor)
-                num_samples, weights = len(self.train_dataset), [
-                    1.0 if not is_empty else P_keep
-                    for is_empty in self.train_dataset.is_mask_empty
-                ]
+                
+                if self.hparams.dataset_kwargs['not_labeled_mode'] != 'single':
+                    # video & None: single record -> single dataset entry
+                    num_samples, weights = len(self.train_dataset), [
+                        1.0 if not is_empty else P_keep
+                        for is_empty in self.train_dataset.is_mask_empty
+                    ]
+                else:
+                    # single: single record -> N_TIMES dataset entries
+                    num_samples = len(self.train_dataset)  # already multiplied by N_TIMES
+                    weights = []
+                    for is_empty in self.train_dataset.is_mask_empty:
+                        weight = 1.0 if not is_empty else P_keep
+                        for _ in range(N_TIMES):
+                            weights.append(weight)
+                
+                assert len(weights) == len(self.train_dataset)
 
                 sampler = WeightedRandomSampler(
                     weights=weights, 
