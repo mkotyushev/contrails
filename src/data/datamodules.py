@@ -666,7 +666,7 @@ class ContrailsDatamodule(LightningDataModule):
                     weights = []
                     for is_empty in self.train_dataset.is_mask_empty:
                         weight = 1.0 if not is_empty else P_keep
-                        for _ in range(N_TIMES):
+                        for time_index in range(N_TIMES):
                             w = weight
                             if time_index != LABELED_TIME_INDEX:
                                 w /= self.hparams.not_labeled_weight_divider
