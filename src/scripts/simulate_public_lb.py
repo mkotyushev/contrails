@@ -65,7 +65,8 @@ def main(args):
 
     # Plot histogram
     plt.hist(metric_values, bins=50, density=True)
-    plt.savefig(f'simulate_public_lb_hist-{args.input_dir.name}-{args.threshold:.2f}-{args.n_samples}-{args.n_bootstrap}.png')
+    input_dirs = '-'.join([d.name for d in args.input_dirs])
+    plt.savefig(f'simulate_public_lb_hist-{input_dirs}-{args.threshold:.2f}-{args.n_samples}-{args.n_bootstrap}-{args.replace}.png')
 
     # Print statistics
     print(f'Bootstrap mean: {np.mean(metric_values)}')
