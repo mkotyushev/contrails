@@ -63,7 +63,7 @@ class MyLightningCLI(LightningCLI):
     def before_instantiate_classes(self) -> None:
         # Set LR: nested dict value setting from CLI is not supported
         # so separate arg is used
-        if self.config['fit']['model']['init_args']['lr'] is not None:
+        if 'fit' in self.config and self.config['fit']['model']['init_args']['lr'] is not None:
             self.config['fit']['model']['init_args']['optimizer_init']['init_args']['lr'] = \
                 self.config['fit']['model']['init_args']['lr']
 
