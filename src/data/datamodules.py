@@ -77,8 +77,7 @@ class ContrailsDatamodule(LightningDataModule):
             None,
         ] = None,
         drop_records_csv_path: Optional[Path] = None,
-        not_labeled_weight_divider: Optional[float] = None,
-        reduce_num_pl_samples: bool = False,
+        not_labeled_weight_divider: float = 1.0,
     ):
         super().__init__()
 
@@ -118,16 +117,18 @@ class ContrailsDatamodule(LightningDataModule):
                     f'to avoid OOM during val and test'
                 )
 
-        if not_labeled_weight_divider is not None:
+        assert not_labeled_weight_divider >= 1.0, \
+            'not_labeled_weight_divider must be >= 1.0'
+        if not np.isclose(not_labeled_weight_divider, 1.0):
             assert dataset_kwargs['not_labeled_mode'] == 'single', \
-                'not_labeled_weight_divider is valid only ' \
+                'not_labeled_weight_divider != 1.0 is valid only ' \
                 'for not_labeled_mode == "single"'
             assert sampler_type in [
                 'weighted_scale', 
                 'weighted_not_labeled', 
                 'weighted_not_labeled_special'
             ], \
-                'not_labeled_weight_divider is valid only ' \
+                'not_labeled_weight_divider != 1.0 is valid only ' \
                 'for certain sampler_type (see src/data/datamodules.py)'
 
         if img_size_val_test is None:
@@ -655,14 +656,19 @@ class ContrailsDatamodule(LightningDataModule):
                     ]
                 else:
                     # single: single record -> N_TIMES dataset entries
-                    if not self.hparams.reduce_num_pl_samples:
-                        # Just as is
-                        num_samples = len(self.train_dataset)  # already multiplied by N_TIMES
-                    else:
-                        # Reduce number of pseudolabels samples
-                        # to have the same number of samples with pseudolabels
-                        # as with original labels
-                        num_samples = int(2 * len(self.train_dataset) / N_TIMES)
+
+                    # Reduce number of pseudolabels samples
+                    # proportionally to not_labeled_weight_divider.
+                    # Examples:
+                    # 1) not_labeled_weight_divider == 1.0 -> num samples is full
+                    #    original + pseudolabels dataset (1 frame for original
+                    #    and N_TIMES - 1 frames for pseudolabels)
+                    # 2) not_labeled_weight_divider == N_TIMES - 1 (7.0) -> num samples is 
+                    #    original + pseudolabels / (N_TIMES - 1) dataset (1 frame for original
+                    #    and 1 frame for pseudolabels)
+                    ratio = (N_TIMES - 1) / self.hparams.not_labeled_weight_divider
+                    num_samples = int((1 + ratio) * len(self.train_dataset) / N_TIMES)
+                    
                     weights = []
                     for is_empty in self.train_dataset.is_mask_empty:
                         weight = 1.0 if not is_empty else P_keep
@@ -688,14 +694,18 @@ class ContrailsDatamodule(LightningDataModule):
                 # and samples with pseudolabels with 1.0 / not_labeled_weight_divider
                 # to reduce probability of sampling pseudolabels
 
-                if not self.hparams.reduce_num_pl_samples:
-                    # Just as is
-                    num_samples = len(self.train_dataset)  # already multiplied by N_TIMES
-                else:
-                    # Reduce number of pseudolabels samples
-                    # to have the same number of samples with pseudolabels
-                    # as with original labels
-                    num_samples = int(2 * len(self.train_dataset) / N_TIMES)
+                # Reduce number of pseudolabels samples
+                # proportionally to not_labeled_weight_divider
+                # Examples:
+                # 1) not_labeled_weight_divider == 1.0 -> num samples is full
+                #    original + pseudolabels dataset (1 frame for original
+                #    and N_TIMES - 1 frames for pseudolabels)
+                # 2) not_labeled_weight_divider == N_TIMES - 1 (7.0) -> num samples is 
+                #    original + pseudolabels / (N_TIMES - 1) dataset (1 frame for original
+                #    and 1 frame for pseudolabels)
+                ratio = (N_TIMES - 1) / self.hparams.not_labeled_weight_divider
+                num_samples = int((1 + ratio) * len(self.train_dataset) / N_TIMES)
+
                 weights = []
                 for _ in self.train_dataset.record_dirs:
                     for time_index in range(N_TIMES):
