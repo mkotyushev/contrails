@@ -66,23 +66,6 @@ model:
     log_preview_every_n_epochs: 1
     tta_params: null
     tta_single_index: null
-    # tta_params: 
-    #   aggr: mean
-    #   n_random_replays: 0
-    #   use_hflip: false
-    #   use_vflip: false
-    #   rotate90_indices: null
-    #   scale_factors: null
-    #   shift_params:
-    #   - [0, 4]
-    #   - [4, 0]
-    #   - [4, 4]
-    #   - [0, -8]
-    #   - [-8, 0]
-    #   - [-8, -8]
-    #   - [0, 12]
-    #   - [12, 0]
-    #   - [12, 12]
     pretrained: imagenet
     mechanize: false
     loss_name: bce=0.9+dice=0.1
