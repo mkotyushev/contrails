@@ -9,12 +9,6 @@ model:
       rotate90_indices: null
       scale_factors: null
       shift_params:
-      - [0, 4]
-      - [4, 0]
       - [4, 4]
-      - [0, -8]
-      - [-8, 0]
-      - [-8, -8]
-      - [0, 12]
-      - [12, 0]
+      - [8, 8]
       - [12, 12]
