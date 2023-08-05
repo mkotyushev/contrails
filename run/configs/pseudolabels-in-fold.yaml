@@ -3,6 +3,10 @@ trainer:
   # as many samples as in usual run
   # and max_epochs for usual run is 128
   max_epochs: 64
+model:
+  # redice LR w.r.t. usual run so as 
+  # finetuning not training from scratch
+  lr: 5e-5
 data:
   init_args:
     img_size_val_test: 1024
