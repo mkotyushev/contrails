@@ -19,7 +19,7 @@ data:
       band_ids: [11, 14, 15]
       mask_type: voting50
       not_labeled_mode: single
-      pseudolabels_path: ./pseudolabels/in-fold/npy
+      pseudolabels_path: ../data/pseudolabels/in-fold/npy
       conversion_type: ash
       quantize: true
       stats_precomputed: false
