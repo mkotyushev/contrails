@@ -11,7 +11,7 @@ from src.data.datasets import LABELED_TIME_INDEX
 
 
 def main(args):
-    paths = sorted(list(args.input_dir.glob('*.png')))
+    paths = sorted([list(d.glob('*.png')) for d in args.input_dirs])
     print(f'Total records: {len(paths)}')
 
     # Read data
@@ -39,13 +39,19 @@ def main(args):
         targets.append(target)
         preds.append(pred)
 
-    # Bootstrap
+    # Score full dataset
     metric = BinaryF1Score(threshold=args.threshold)
+    target = np.concatenate([targets[i] for i in range(len(targets))])
+    pred = np.concatenate([preds[i] for i in range(len(preds))])
+    metric.update(torch.tensor(pred).flatten(), torch.tensor(target).flatten())
+    print(f'Full dataset score: {metric.compute().item()}')
+    metric.reset()
 
+    # Bootstrap
     metric_values = []
     for _ in  tqdm(range(args.n_bootstrap), desc='bootstrap'):
         # Sample
-        sample_indices = np.random.choice(len(paths), args.n_samples, replace=True)
+        sample_indices = np.random.choice(len(paths), args.n_samples, replace=args.replace)
         target = np.concatenate([targets[i] for i in sample_indices])
         pred = np.concatenate([preds[i] for i in sample_indices])
 
@@ -66,9 +72,10 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('dataset_dir', type=Path, help='directory with dataset')
-    parser.add_argument('input_dir', type=Path, help='directory with .png predictions')
+    parser.add_argument('input_dirs', type=Path, nargs='+', help='directory(-es) with .png predictions')
     parser.add_argument('--threshold', type=float, default=0.3, help='threshold to binarize predictions')
     parser.add_argument('--n_samples', type=int, default=279, help='number of samples to use')
     parser.add_argument('--n_bootstrap', type=int, default=1000, help='number of bootstrap tries')
+    parser.add_argument('--replace', action='store_true', help='whether sample with replacement or not')
     args = parser.parse_args()
     main(args)
