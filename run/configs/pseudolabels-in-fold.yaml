@@ -1,12 +1,12 @@
 trainer:
-  max_epochs: 8
+  max_epochs: 16
   check_val_every_n_epoch: 1
   val_check_interval: 0.125
 data:
   init_args:
     dataset_kwargs:
       band_ids: [11, 14, 15]
-      mask_type: weighted
+      mask_type: voting50
       not_labeled_mode: single
       pseudolabels_path: ../data/pseudolabels/in-fold/npy
       conversion_type: ash
