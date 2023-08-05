@@ -632,6 +632,8 @@ class ContrailsDatamodule(LightningDataModule):
                         raise ValueError(
                             f'scale_factor {s} < 1.0 is not supported'
                         )
+                    elif s in scale_factor_to_P_keep:
+                        continue
                     else:
                         # Interpolate
                         scale_factor_to_P_keep[s] = interpolate_scale_factor_to_P_keep(s)
