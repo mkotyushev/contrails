@@ -8,5 +8,5 @@ data:
       conversion_type: ash
       quantize: true
       stats_precomputed: false
-    cache_dir: cache_pseudolabels
+    cache_dir: cache_pseudolabel
     remove_pseudolabels_from_val_test: true
