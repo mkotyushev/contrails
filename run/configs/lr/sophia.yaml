@@ -1,7 +1,7 @@
 model:
   init_args:
     optimizer_init: 
-      class_path: Sophia.SophiaG
+      class_path: src.utils.sophia.SophiaG
       init_args:
         lr: 1e-4
         rho: 0.03
