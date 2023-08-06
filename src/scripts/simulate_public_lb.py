@@ -71,6 +71,8 @@ def main(args):
     # Print statistics
     print(f'Bootstrap mean: {np.mean(metric_values)}')
     print(f'Bootstrap std: {np.std(metric_values)}')
+    print(f'Bootstrap min: {np.min(metric_values)}')
+    print(f'Bootstrap max: {np.max(metric_values)}')
 
 
 if __name__ == '__main__':
