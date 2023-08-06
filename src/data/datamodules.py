@@ -479,6 +479,7 @@ class ContrailsDatamodule(LightningDataModule):
         )
 
         is_mask_empty = df['is_mask_empty'].values
+        set_id_spatiotemporal = df['set_id_spatiotemporal'].values
 
         if self.hparams.spatotemporal_duplicates_strategy == 'drop':
             df = df.drop_duplicates(subset=['set_id_spatiotemporal'], keep='first')
@@ -497,11 +498,13 @@ class ContrailsDatamodule(LightningDataModule):
 
         train_record_dirs, val_record_dirs, test_record_dirs = [], [], []
         train_is_mask_empty, val_is_mask_empty, test_is_mask_empty = [], [], []
+        train_set_id_spatiotemporal, val_set_id_spatiotemporal, test_set_id_spatiotemporal = [], [], []
         if self.hparams.fold_index_outer is None:
             if self.hparams.fold_index is None:
                 # Simply use all the dirs as train
                 train_record_dirs = dirs
                 train_is_mask_empty = is_mask_empty
+                train_set_id_spatiotemporal = set_id_spatiotemporal
             else:
                 # Split train dirs to train and val
                 # stratified by mask_sum_qcut_code
@@ -524,6 +527,8 @@ class ContrailsDatamodule(LightningDataModule):
                         val_record_dirs = [dirs[i] for i in val_index]
                         train_is_mask_empty = [is_mask_empty[i] for i in train_index]
                         val_is_mask_empty = [is_mask_empty[i] for i in val_index]
+                        train_set_id_spatiotemporal = [set_id_spatiotemporal[i] for i in train_index]
+                        val_set_id_spatiotemporal = [set_id_spatiotemporal[i] for i in val_index]
                         break
         else:
             # Split train dirs to train + val and test
@@ -551,11 +556,14 @@ class ContrailsDatamodule(LightningDataModule):
                     test_record_dirs = [dirs[i] for i in test_index]
                     train_val_is_mask_empty = [is_mask_empty[i] for i in train_val_index]
                     test_is_mask_empty = [is_mask_empty[i] for i in test_index]
+                    train_val_set_id_spatiotemporal = [set_id_spatiotemporal[i] for i in train_val_index]
+                    test_set_id_spatiotemporal = [set_id_spatiotemporal[i] for i in test_index]
 
                     if self.hparams.fold_index is None:
                         # Use all the train + val as train
                         train_record_dirs = train_val_record_dirs
                         train_is_mask_empty = train_val_is_mask_empty
+                        train_set_id_spatiotemporal = train_val_set_id_spatiotemporal
                         break
 
                     # Split train + val on train and val
@@ -578,8 +586,24 @@ class ContrailsDatamodule(LightningDataModule):
                             val_record_dirs = [train_val_record_dirs[i] for i in val_index]
                             train_is_mask_empty = [train_val_is_mask_empty[i] for i in train_index]
                             val_is_mask_empty = [train_val_is_mask_empty[i] for i in val_index]
+                            train_set_id_spatiotemporal = [train_val_set_id_spatiotemporal[i] for i in train_index]
+                            val_set_id_spatiotemporal = [train_val_set_id_spatiotemporal[i] for i in val_index]
                             break
                     break
+
+        if self.hparams.spatotemporal_duplicates_strategy == 'drop_only_train':
+            # Keep first occurence of each set_id_spatiotemporal
+            # in train_set_id_spatiotemporal
+            train_record_dirs_keep = []
+            train_is_mask_empty_keep = []
+            train_set_id_spatiotemporal_unique = set()
+            for i, id_ in enumerate(train_set_id_spatiotemporal):
+                if id_ not in train_set_id_spatiotemporal_unique:
+                    train_record_dirs_keep.append(train_record_dirs[i])
+                    train_is_mask_empty_keep.append(train_is_mask_empty[i])
+                    train_set_id_spatiotemporal_unique.add(id_)
+            train_record_dirs = train_record_dirs_keep
+            train_is_mask_empty = train_is_mask_empty_keep
         
         # Drop empty masks from train
         if self.hparams.empty_mask_strategy == 'drop_only_train':
