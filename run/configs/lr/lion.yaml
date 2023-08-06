@@ -1,0 +1,7 @@
+model:
+  init_args:
+    optimizer_init: 
+      class_path: lion_pytorch.Lion
+      init_args:
+        weight_decay: 1e-6
+        lr: 1e-4
