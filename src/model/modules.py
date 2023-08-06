@@ -1153,6 +1153,7 @@ class SegmentationModule(BaseModule):
         add_dice_thresholded: bool = False,
         num_frames: Optional[int] = None,
         add_dataloader_idx: bool = False,
+        cat_mode: Literal['spatial', 'spatial_fixed', 'channel', None] = None,
     ):
         super().__init__(
             optimizer_init=optimizer_init,
@@ -1166,6 +1167,11 @@ class SegmentationModule(BaseModule):
             prog_bar_names=prog_bar_names,
             mechanize=mechanize,
         )
+        
+        if cat_mode == 'spatial_fixed':
+            assert num_frames is not None, \
+                'num_frames must be provided for cat_mode == spatial_fixed'
+
         self.save_hyperparameters()
 
         torch.set_float32_matmul_precision('medium')
@@ -1260,6 +1266,17 @@ class SegmentationModule(BaseModule):
         
         if 'mask' not in batch:
             return None, None, preds
+        
+        # If cat_mode is 'spatial_fixed', remove all the prediction and target 
+        # frames except the last one. Frames are concatenated along width dimension.
+        if self.hparams.cat_mode == 'spatial_fixed':
+            assert preds.shape[2] % self.hparams.num_frames == 0, \
+                f'preds.shape[2] ({preds.shape[2]}) is not divisible by ' \
+                f'num_frames ({self.hparams.num_frames})'
+            W_orig = preds.shape[-1] // self.hparams.num_frames
+            
+            preds = preds[..., -W_orig:].contiguous()
+            batch['mask'] = batch['mask'][..., -W_orig:].contiguous()
         
         if preds.ndim == 4 and only_labeled:
             # video_mask2former

@@ -582,6 +582,9 @@ class SelectConcatTransform:
         image = kwargs["image"]
         image = image.reshape(*image.shape[:-1], -1, N_TIMES)
 
+        # Do not change mask
+        mask = kwargs["mask"]
+
         # Fill time_indices: pre-defined + random
         time_indices = []
 
@@ -607,29 +610,17 @@ class SelectConcatTransform:
             # (H, W, C, len(self.time_indices)) -> (H, W, len(self.time_indices) * C)
             image = image.swapaxes(3, 2).reshape(*image.shape[:-2], -1)
         elif self.cat_mode == 'spatial':
-            # Group frames into square spatial grid
+            # Concatenate time frames along width:
+            # leftmost is the first frame, rightmost is the last frame
             H, W, C, N = image.shape
             assert H == W
+            image = image.transpose(0, 3, 1, 2).reshape(H, N * W, C)
 
-            # Pad len(self.time_indices) to nearest square:
-            # image: (H, W, C, T)
-            # image_new: (n_rows, H, n_cols, W, C)
-            n_rows = n_cols = int(np.ceil(np.sqrt(len(N))))
-            image_new = np.full(
-                (H, n_rows, W, n_cols, C),
-                fill_value=self.fill_value,
-                dtype=image.dtype
-            )
-
-            for i, t in enumerate(N):
-                row_index = i // n_cols
-                col_index = i % n_cols
-                image_new[row_index, :, col_index, :] = image[..., t]
-
-            # (n_rows, H, n_cols, W, C) -> (n_rows * H, n_cols * W, C)
-            image = image_new.reshape(n_rows * H, n_cols * W, C)
+            # Pad mask with 0s (will be ignored in loss)
+            mask = np.pad(mask, ((0, 0), ((N - 1) * W, 0)), constant_values=0)
 
         # Set new image: (H, W, C) or (H, W, C')
         kwargs["image"] = image
+        kwargs["mask"] = mask
 
         return kwargs

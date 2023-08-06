@@ -59,6 +59,10 @@ class MyLightningCLI(LightningCLI):
             "data.init_args.test_as_aux_val", 
             "model.init_args.add_dataloader_idx",
         )
+        parser.link_arguments(
+            "data.init_args.cat_mode", 
+            "model.init_args.cat_mode",
+        )
         
     def before_instantiate_classes(self) -> None:
         # Set LR: nested dict value setting from CLI is not supported

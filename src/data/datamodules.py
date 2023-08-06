@@ -222,10 +222,10 @@ class ContrailsDatamodule(LightningDataModule):
                             cat_mode='spatial',
                             num_total_frames=None,
                             time_indices=[
-                                LABELED_TIME_INDEX - 2, 
-                                LABELED_TIME_INDEX - 1, 
-                                LABELED_TIME_INDEX, 
-                                LABELED_TIME_INDEX + 1
+                                i for i in range(
+                                    LABELED_TIME_INDEX + 1 - self.hparams.num_frames, 
+                                    LABELED_TIME_INDEX + 1
+                                )
                             ],
                         )
                     ]
@@ -269,6 +269,12 @@ class ContrailsDatamodule(LightningDataModule):
                     p=0.5,
                     always_apply=False,
                 )
+        
+        # Val and test width: if contenate time frames along width,
+        # then multiply width by number of frames
+        val_test_width = self.hparams.img_size_val_test
+        if self.hparams.cat_mode == 'spatial_fixed':
+            val_test_width = val_test_width * self.hparams.num_frames
         
         self.val_transform = self.test_transform = A.Compose(
             [
