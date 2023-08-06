@@ -281,7 +281,7 @@ class ContrailsDatamodule(LightningDataModule):
                 *n_frames_tranform,
                 A.Resize(
                     height=self.hparams.img_size_val_test,
-                    width=self.hparams.img_size_val_test,
+                    width=val_test_width,
                     always_apply=True,
                 ),
                 A.Normalize(
