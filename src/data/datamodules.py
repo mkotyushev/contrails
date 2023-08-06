@@ -63,7 +63,7 @@ class ContrailsDatamodule(LightningDataModule):
         disable_cache: bool = False,
         cache_dir: Optional[Path] = None,
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
-        spatotemporal_duplicates_strategy: Literal['drop', None] = None,
+        spatotemporal_duplicates_strategy: Literal['drop', 'drop_only_train', None] = None,
         split_info_path: Optional[Path] = None,
         scale_factor: Optional[float | Tuple[float, ...]] = None,
         to_predict: Literal['test', 'val', 'train'] = 'test',
