@@ -108,7 +108,7 @@ model:
     lr_layer_decay: 1.0
     verbose: 0
     n_bootstrap: 0
-    fill_metric_nan: null
+    fill_metric_nan: 0.0
     prog_bar_names: 
       - dice
     grad_checkpointing: false
