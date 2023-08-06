@@ -9,8 +9,8 @@ model:
           - class_path: src.utils.lr_scheduler.LinearLRSchedulerPiece
             init_args:
               start_lr: 1e-1
-              stop_lr: 3
+              stop_lr: 2
           - class_path: src.utils.lr_scheduler.CosineLRSchedulerPiece
             init_args:
-              start_lr: 3
+              start_lr: 2
               stop_lr: 1e-2
