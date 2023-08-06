@@ -482,8 +482,11 @@ class ContrailsDatamodule(LightningDataModule):
 
         if self.hparams.spatial_duplicates_strategy == 'drop':
             df = df.drop_duplicates(subset=['set_id_spatial'], keep='first')
-            is_mask_empty = df['is_mask_empty'].values
-            dirs = df['path'].to_list()
+            is_mask_empty = df['is_mask_empty'].to_list()
+            dirs = [
+                d for d in dirs
+                if str(d) in df['path'].to_list()
+            ]
 
         if self.hparams.empty_mask_strategy == 'drop':
             dirs = [
