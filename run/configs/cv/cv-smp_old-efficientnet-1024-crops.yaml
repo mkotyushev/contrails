@@ -48,8 +48,8 @@ parameters:
     distribution: constant
     value: "null"
   data.init_args.fold_index:
-    distribution: constant
-    value: "null"
+    distribution: categorical
+    values:
     - 0
     - 1
     - 2
