@@ -1273,9 +1273,11 @@ class SegmentationModule(BaseModule):
             assert preds.shape[2] % self.hparams.num_frames == 0, \
                 f'preds.shape[2] ({preds.shape[2]}) is not divisible by ' \
                 f'num_frames ({self.hparams.num_frames})'
-            W_orig = preds.shape[-1] // self.hparams.num_frames
             
-            preds = preds[..., -W_orig:].contiguous()
+            B, C, H, W = preds.shape
+            W_orig = W // self.hparams.num_frames
+            
+            preds = preds.reshape(B, C, H, self.hparams.num_frames, W_orig).mean(-2).contiguous()
             batch['mask'] = batch['mask'][..., -W_orig:].contiguous()
         
         if preds.ndim == 4 and only_labeled:
