@@ -63,7 +63,7 @@ class ContrailsDatamodule(LightningDataModule):
         disable_cache: bool = False,
         cache_dir: Optional[Path] = None,
         empty_mask_strategy: Literal['cpp', 'drop', 'drop_only_train'] | None = None,
-        spatial_duplicates_strategy: Literal['drop', None] = None,
+        spatotemporal_duplicates_strategy: Literal['drop', None] = None,
         split_info_path: Optional[Path] = None,
         scale_factor: Optional[float | Tuple[float, ...]] = None,
         to_predict: Literal['test', 'val', 'train'] = 'test',
@@ -480,8 +480,8 @@ class ContrailsDatamodule(LightningDataModule):
 
         is_mask_empty = df['is_mask_empty'].values
 
-        if self.hparams.spatial_duplicates_strategy == 'drop':
-            df = df.drop_duplicates(subset=['set_id_spatial'], keep='first')
+        if self.hparams.spatotemporal_duplicates_strategy == 'drop':
+            df = df.drop_duplicates(subset=['set_id_spatiotemporal'], keep='first')
             is_mask_empty = df['is_mask_empty'].to_list()
             dirs = [
                 d for d in dirs

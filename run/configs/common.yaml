@@ -156,7 +156,7 @@ data:
     to_predict: test
     split_info_path: ./split_info.csv
     empty_mask_strategy: null
-    spatial_duplicates_strategy: null
+    spatotemporal_duplicates_strategy: null
     mix_transform_name: null
     batch_size: 32
     batch_size_val_test: null  # same as batch_size
