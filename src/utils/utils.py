@@ -252,6 +252,14 @@ class MyLightningCLISweep(MyLightningCLI):
             math.floor(batch_size / divider)
         self.config['fit']['trainer']['accumulate_grad_batches'] = \
             math.ceil(accumulate_grad_batches * divider)
+            
+        # Only divide by device_to_batch_size_divider
+        if self.config['fit']['data']['init_args']['batch_size_val_test'] is not None:
+            self.config['fit']['data']['init_args']['batch_size_val_test'] = \
+                math.floor(
+                    self.config['fit']['data']['init_args']['batch_size_val_test'] / 
+                    device_to_batch_size_divider[device_name]
+                )
         
         # Set num_workers to min(number of threads, num_workers)
         self.config['fit']['data']['init_args']['num_workers'] = min(
