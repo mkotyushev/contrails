@@ -1,0 +1,13 @@
+data:
+  init_args:
+    cat_mode: spatial_fixed
+    num_frames: 2
+    cache_dir: cache_cat_spatial_fixed
+    dataset_kwargs:
+      band_ids: [11, 14, 15]
+      mask_type: voting50
+      not_labeled_mode: video
+      pseudolabels_path: null
+      conversion_type: ash
+      quantize: true
+      stats_precomputed: false
