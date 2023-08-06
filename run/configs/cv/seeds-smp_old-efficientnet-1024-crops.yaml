@@ -34,13 +34,13 @@ parameters:
     value: weighted_scale
   data.init_args.num_folds:
     distribution: constant
-    value: null
+    value: "null"
   data.init_args.fold_index_outer:
     distribution: constant
-    value: null
+    value: "null"
   data.init_args.fold_index:
     distribution: constant
-    value: null
+    value: "null"
   seed_everything:
     distribution: categorical
     values:

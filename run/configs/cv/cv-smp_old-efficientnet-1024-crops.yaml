@@ -7,7 +7,7 @@ command:
   - --config
   - run/configs/common.yaml
   - --config
-  - run/configs/save.yaml
+  - run/configs/save-no-val.yaml
   - ${args}
 method: grid
 parameters:
@@ -46,10 +46,10 @@ parameters:
     value: 10
   data.init_args.fold_index_outer:
     distribution: constant
-    value: null
+    value: "null"
   data.init_args.fold_index:
     distribution: constant
-    value: null
+    value: "null"
     - 0
     - 1
     - 2
