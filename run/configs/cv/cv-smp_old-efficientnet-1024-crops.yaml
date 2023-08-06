@@ -7,10 +7,13 @@ command:
   - --config
   - run/configs/common.yaml
   - --config
-  - run/configs/save-no-val.yaml
+  - run/configs/save.yaml
   - ${args}
 method: grid
 parameters:
+  trainer.check_val_every_n_epoch:
+    distribution: constant
+    value: 4
   trainer.max_epochs:
     distribution: constant
     value: 128
@@ -26,6 +29,12 @@ parameters:
   data.init_args.scale_factor:
     distribution: constant
     value: 16.0
+  data.init_args.img_size_val_test:
+    distribution: constant
+    value: 1024
+  data.init_args.batch_size_val_test:
+    distribution: constant
+    value: 4
   data.init_args.crop_uniform:
     distribution: constant
     value: discrete
@@ -34,16 +43,13 @@ parameters:
     value: weighted_scale
   data.init_args.num_folds:
     distribution: constant
-    value: null
+    value: 10
   data.init_args.fold_index_outer:
     distribution: constant
     value: null
   data.init_args.fold_index:
     distribution: constant
     value: null
-  seed_everything:
-    distribution: categorical
-    values:
     - 0
     - 1
     - 2
