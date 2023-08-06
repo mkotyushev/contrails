@@ -71,7 +71,7 @@ class ContrailsDatamodule(LightningDataModule):
         num_frames: Optional[int] = None,
         test_as_aux_val: bool = False,
         crop_uniform: Literal[None, 'scale', 'area', 'discrete'] = None,
-        cat_mode: Literal['spatial', 'channel', None] = None,
+        cat_mode: Literal['spatial', 'spatial_fixed', 'channel', None] = None,
         sampler_type: Literal[
             'weighted_scale', 
             'weighted_not_labeled', 
@@ -216,11 +216,24 @@ class ContrailsDatamodule(LightningDataModule):
                             time_indices=[LABELED_TIME_INDEX],
                         )
                     ]
+                elif self.hparams.cat_mode == 'spatial_fixed':
+                    n_frames_tranform = [
+                        SelectConcatTransform(
+                            cat_mode='spatial',
+                            num_total_frames=None,
+                            time_indices=[
+                                LABELED_TIME_INDEX - 2, 
+                                LABELED_TIME_INDEX - 1, 
+                                LABELED_TIME_INDEX, 
+                                LABELED_TIME_INDEX + 1
+                            ],
+                        )
+                    ]
 
         self.train_transform = A.Compose(
             [
-                *n_frames_tranform,
                 train_resize_transform,
+                *n_frames_tranform,
                 *aug_transform,
                 A.Normalize(
                     max_pixel_value=255.0,
