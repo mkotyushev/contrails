@@ -47,6 +47,9 @@ parameters:
   data.init_args.fold_index_outer:
     distribution: constant
     value: "null"
+  seed_everything:
+    distribution: constant
+    value: 0
   data.init_args.fold_index:
     distribution: categorical
     values:
