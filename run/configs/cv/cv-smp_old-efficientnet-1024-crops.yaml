@@ -34,7 +34,7 @@ parameters:
     value: 1024
   data.init_args.batch_size_val_test:
     distribution: constant
-    value: 4
+    value: 2
   data.init_args.crop_uniform:
     distribution: constant
     value: discrete
