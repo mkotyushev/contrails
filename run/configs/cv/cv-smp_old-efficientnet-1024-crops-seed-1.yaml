@@ -50,6 +50,9 @@ parameters:
   seed_everything:
     distribution: constant
     value: 1
+  data.init_args.random_state:
+    distribution: constant
+    value: 1
   data.init_args.fold_index:
     distribution: categorical
     values:
