@@ -6,12 +6,12 @@ trainer:
     - class_path: src.utils.utils.EMACallback
       init_args:
         decay: 0.9
-        save_on: validation_end
+        save_on: train_epoch_end
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         save_top_k: 1
         monitor: v_dice
-        every_n_epochs: 1
+        every_n_epochs: 4
         mode: max
         save_on_train_epoch_end: false
         save_last: true
@@ -19,7 +19,7 @@ trainer:
       init_args:
         save_top_k: 1
         monitor: v_dice
-        every_n_epochs: 1
+        every_n_epochs: 4
         mode: max
         save_on_train_epoch_end: false
         save_last: true

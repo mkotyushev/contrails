@@ -7,7 +7,7 @@ command:
   - --config
   - run/configs/common.yaml
   - --config
-  - run/configs/save-no-val.yaml
+  - run/configs/save.yaml
   - ${args}
 method: grid
 parameters:
