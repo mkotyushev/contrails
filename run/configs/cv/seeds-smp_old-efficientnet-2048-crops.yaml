@@ -1,0 +1,65 @@
+program: run/main.py
+command:
+  - ${env}
+  - /root/miniconda3/envs/contrails/bin/python
+  - ${program}
+  - fit
+  - --config
+  - run/configs/common.yaml
+  - --config
+  - run/configs/save-no-val.yaml
+  - ${args}
+method: grid
+parameters:
+  trainer.max_epochs:
+    distribution: constant
+    value: 64
+  trainer.accumulate_grad_batches:
+    distribution: constant
+    value: 4
+  trainer.limit_val_batches:
+    distribution: constant
+    value: 0
+  model.init_args.library:
+    distribution: constant
+    value: smp_old
+  model.init_args.architecture:
+    distribution: constant
+    value: unet
+  model.init_args.backbone_name:
+    distribution: constant
+    value: tf_efficientnet_b8.ap_in1k
+  data.init_args.batch_size:
+    distribution: constant
+    value: 8
+  data.init_args.scale_factor:
+    distribution: constant
+    value: 16.0
+  data.init_args.crop_uniform:
+    distribution: constant
+    value: discrete
+  data.init_args.sampler_type:
+    distribution: constant
+    value: weighted_scale
+  data.init_args.num_folds:
+    distribution: constant
+    value: "null"
+  data.init_args.fold_index_outer:
+    distribution: constant
+    value: "null"
+  data.init_args.fold_index:
+    distribution: constant
+    value: "null"
+  seed_everything:
+    distribution: categorical
+    values:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
